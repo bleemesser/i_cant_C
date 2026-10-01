@@ -37,13 +37,67 @@ static void test_put_nonempty(void) {
     check_remove(b, "lremove finds second car put");
 }
 
+static void test_get_empty(void) {
+	  check(lget() == NULL, "get on empty list returns NULL");
+}
+
+static void test_get_nonempty(void) {
+	  car_t *a = must_make_car("AAA");
+	  car_t *b = must_make_car("BBB");
+
+	  check(lput(a) == 0, "first lput returns 0");
+    check(lput(b) == 0, "lput to non-empty list returns 0");
+
+	  car_t *get1 = lget();
+	  car_t *get2 = lget();
+	
+    check(get1  == b, "lget returns first item");
+	  check(get2 == a, "lget returns first item again");
+
+	  free(a);
+	  free(b);
+}
+
+static void test_function(car_t *cp) {
+	cp->year = 2030;
+}
+
+static void test_apply_empty(void) {
+	lapply(test_function);
+	check(lget() == NULL, "nothing happened, list still empty");
+}
+
+static void test_apply_nonempty(void) {
+	car_t *cars[3];
+
+	put_three(cars);
+
+	lapply(test_function);
+
+	car_t *a = lget();
+	car_t *b = lget();
+	car_t *c = lget();
+
+	check(a->year == 2030, "applied to first item");
+	check(b->year == 2030, "applied to second item");
+	check(c->year == 2030, "applied to third item");
+
+	free(a);
+	free(b);
+	free(c);
+}
+
 int main(void) {
     test_put_null();
     test_put_empty();
     test_put_nonempty();
 
-    test_remove_empty();
-    
+    test_get_empty();
+		test_get_nonempty();
+
+		test_apply_empty();
+		test_apply_nonempty();
+		
     if (failures > 0) {
         printf("%d tests failed\n", failures);
         exit(EXIT_FAILURE);

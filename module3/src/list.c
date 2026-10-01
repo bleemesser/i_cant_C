@@ -25,7 +25,7 @@ car_t *lget() {
 	  car_t *first = front;
 	  front = front->next;
 
-	  return front;
+	  return first;
 }
 
 void lapply(void (*fn)(car_t *cp)) {
