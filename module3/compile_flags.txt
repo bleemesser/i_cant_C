@@ -1,0 +1,6 @@
+-Wall
+-pedantic
+-std=c11
+-Iinclude
+-lbsd
+-g
