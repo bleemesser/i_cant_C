@@ -18,9 +18,22 @@ int32_t lput(car_t *cp) {
 }
 
 car_t *lget() {
+	  if (front == NULL) {
+		  return NULL;
+	  }
+
+	  car_t *first = front;
+	  front = front->next;
+
+	  return front;
 }
 
 void lapply(void (*fn)(car_t *cp)) {
+	  car_t *current = front;
+	  while (current != NULL) {
+			  fn(current);
+				current = current->next;
+		}
 }
 
 car_t *lremove(char *platep) {
