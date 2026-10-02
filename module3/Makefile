@@ -1,5 +1,4 @@
 CFLAGS= -Wall -pedantic -std=c11 -Iinclude -g
-LDLIBS= -lbsd
 
 all: test
 
@@ -10,7 +9,7 @@ hash_test: src/hash.c include/hash.h src/hash_test.c
 
 
 list_test: src/list.c include/list.h src/list_test.c
-	gcc $(CFLAGS) -o list_test src/list.c src/list_test.c $(LDLIBS)
+	gcc $(CFLAGS) -o list_test src/list_test.c
 
 
 queue_test: src/queue.c include/queue.h src/queue_test.c

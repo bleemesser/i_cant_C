@@ -33,6 +33,9 @@ car_t *lget(void) {
 }
 
 void lapply(void (*fn)(car_t *cp)) {
+    // note: header does not provide a way to signal failure if fn==NULL
+    // or if fn has a failure of some kind :(
+
     car_t *current = front;
     while (current != NULL) {
         fn(current);
