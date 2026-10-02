@@ -20,6 +20,7 @@ typedef struct node {
  * this is the actual type it refers to
  */
 typedef struct queue_impl {
+    /* BOTH head and tail must be NULL if and only if the queue is empty!! */
     node_t *head;
     node_t *tail;
 } queue_impl_t;
@@ -66,3 +67,68 @@ void qclose(queue_t *qp) {
 
     free(qip);
 }
+
+/*
+ * Put an element at the end of the queue (enqueue).
+ *
+ * `datap` may be a pointer to any type, but that pointer
+ * must not be NULL.
+ *
+ * Will return 0 if successful.
+ * Will return 1 if an invalid (null) argument is
+ * passed or malloc fails to create the entry
+ */
+int32_t qput(queue_t *qp, void *datap) {
+    queue_impl_t *qip = qp;
+
+    if (qip == NULL || datap == NULL) {
+        return 1;
+    }
+
+    node_t *np = malloc(sizeof(node_t));
+    if (np == NULL) {
+        return 1;
+    }
+
+    // since np is placed at the TAIL, it has no `next` yet
+    np->next = NULL;
+    np->datap = datap;
+
+    if (qip->tail == NULL) {
+        qip->head = np;
+    } else {
+        qip->tail->next = np;
+    }
+    qip->tail = np;
+
+    return 0;
+}
+
+/*
+ * Get the first item from the queue, removing it.
+ *
+ * Caller is responsible for freeing the returned data.
+ *
+ * Will return NULL if `qp` is NULL or if the queue is empty.
+ */
+void *qget(queue_t *qp) {
+    queue_impl_t *qip = qp;
+
+    if (qip == NULL) {
+        return NULL;
+    }
+
+    node_t *np = qip->head;
+    void *datap = np->datap;
+
+    qip->head = np->next;
+
+    if (qip->head == NULL) {
+        qip->tail = NULL;
+    }
+
+    free(np);
+
+    return datap;
+}
+
