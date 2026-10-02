@@ -51,8 +51,12 @@ car_t *lremove(char *platep) {
     car_t **current = &front;
 
     while (*current != NULL && strcmp((*current)->plate, platep) != 0) {
-        current = &(*current)->next;
+        current = &((*current)->next);
     }
+
+    // after loop, current points to the pointer that links to the target.
+    // this pointer is either front or the .next field of the car before target.
+    // current itself is never null, but if no car matched, *current is NULL.
 
     car_t *found = *current;
     if (found != NULL) {
