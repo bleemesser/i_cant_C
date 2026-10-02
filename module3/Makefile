@@ -4,16 +4,24 @@ all: test
 
 test: hash_test list_test queue_test
 
-hash_test: src/hash.c include/hash.h src/hash_test.c
-	gcc $(CFLAGS) -o hash_test src/hash.c src/hash_test.c
+%.o: src/%.c include/%.h
+	gcc $(CFLAGS) -c $<
+
+%_test.o: src/%_test.c
+	gcc $(CFLAGS) -c $<
 
 
+# list_test.c includes list.c directly, so list.o must not be linked
 list_test: src/list.c include/list.h src/list_test.c
 	gcc $(CFLAGS) -o list_test src/list_test.c
 
 
-queue_test: src/queue.c include/queue.h src/queue_test.c
-	gcc $(CFLAGS) -o queue_test src/queue.c src/queue_test.c
+queue_test: queue.o queue_test.o
+	gcc $(CFLAGS) $^ -o $@
+
+
+hash_test: hash.o queue.o hash_test.o
+	gcc $(CFLAGS) $^ -o $@
 
 
 valgrind: list_test
@@ -21,4 +29,4 @@ valgrind: list_test
 
 
 clean:
-	rm -f hash_test list_test queue_test
+	rm -f *.o hash_test list_test queue_test
