@@ -131,4 +131,3 @@ void *qget(queue_t *qp) {
 
     return datap;
 }
-

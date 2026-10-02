@@ -46,7 +46,7 @@ static void check(bool cond, char *msg) {
 }
 
 static void test_put_null(void) {
-    check(lput(NULL) == 1, "lput correctly rejects NULL");
+    check(lput(NULL) != 0, "lput correctly rejects NULL");
 }
 
 static void test_put_empty(void) {
@@ -84,7 +84,8 @@ static void test_get_nonempty(void) {
 
     ap->next = bp;
     front = ap;
-    check(lget() == ap, "lget returns front car");
+    check(lget() == ap && ap->next == NULL,
+          "lget returns front car and unlinks it");
     check(front == bp, "lget advances front");
 
     free(ap);
@@ -116,6 +117,33 @@ static void test_apply_nonempty(void) {
 
 static void test_remove_empty(void) {
     check(lremove("AAA") == NULL, "lremove from empty list returns NULL");
+}
+
+static void test_remove_nonmatch(void) {
+    car_t *ap = make_car("AAA");
+    car_t *bp = make_car("BBB");
+    car_t *cp = make_car("CCC");
+
+    ap->next = bp;
+    bp->next = cp;
+    front = ap;
+    check(lremove("ZZZ") == NULL, "lremove returns NULL if plate isn't found");
+    check(front == ap && ap->next == bp && bp->next == cp,
+          "lremove miss leaves list intact");
+
+    free(ap);
+    free(bp);
+    free(cp);
+    front = NULL;
+}
+
+static void test_remove_single(void) {
+    car_t *ap = make_car("AAA");
+    front = ap;
+    check(lremove("AAA") == ap && front == NULL,
+          "lremove of only car returns it and empties the list");
+
+    free(ap);
 }
 
 static void test_remove_beginning(void) {
@@ -183,6 +211,8 @@ int main(void) {
     test_apply_empty();
     test_apply_nonempty();
     test_remove_empty();
+    test_remove_nonmatch();
+    test_remove_single();
     test_remove_beginning();
     test_remove_middle();
     test_remove_end();

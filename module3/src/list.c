@@ -28,6 +28,7 @@ car_t *lget(void) {
 
     car_t *first = front;
     front = front->next;
+    first->next = NULL;
 
     return first;
 }
