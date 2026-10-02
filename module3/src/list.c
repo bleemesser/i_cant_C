@@ -1,3 +1,7 @@
+/*
+ * list.c -- implementation of the functions declared in list.h
+ */
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -17,23 +21,23 @@ int32_t lput(car_t *cp) {
     return 0;
 }
 
-car_t *lget() {
-	  if (front == NULL) {
-		  return NULL;
-	  }
+car_t *lget(void) {
+    if (front == NULL) {
+        return NULL;
+    }
 
-	  car_t *first = front;
-	  front = front->next;
+    car_t *first = front;
+    front = front->next;
 
-	  return first;
+    return first;
 }
 
 void lapply(void (*fn)(car_t *cp)) {
-	  car_t *current = front;
-	  while (current != NULL) {
-			  fn(current);
-				current = current->next;
-		}
+    car_t *current = front;
+    while (current != NULL) {
+        fn(current);
+        current = current->next;
+    }
 }
 
 car_t *lremove(char *platep) {
@@ -55,4 +59,3 @@ car_t *lremove(char *platep) {
 
     return found;
 }
-
