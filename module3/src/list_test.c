@@ -45,6 +45,10 @@ static void check(bool cond, char *msg) {
     }
 }
 
+static void test_put_null(void) {
+    check(lput(NULL) == 1, "lput correctly rejects NULL");
+}
+
 static void test_put_empty(void) {
     car_t *ap = make_car("AAA");
 
@@ -166,7 +170,12 @@ static void test_remove_end(void) {
     front = NULL;
 }
 
+static void test_remove_null(void) {
+    check(lremove(NULL) == NULL, "lremove returns NULL if platep is NULL");
+}
+
 int main(void) {
+    test_put_null();
     test_put_empty();
     test_put_nonempty();
     test_get_empty();
@@ -177,6 +186,7 @@ int main(void) {
     test_remove_beginning();
     test_remove_middle();
     test_remove_end();
+    test_remove_null();
 
     if (failures > 0) {
         printf("%d checks failed\n", failures);
