@@ -16,5 +16,9 @@ queue_test: src/queue.c include/queue.h src/queue_test.c
 	gcc $(CFLAGS) -o queue_test src/queue.c src/queue_test.c
 
 
+valgrind: list_test
+	./valgrind.sh
+
+
 clean:
 	rm -f hash_test list_test queue_test
