@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
+#include <stdbool.h>
 #include "queue.h"
 
 typedef struct node {
@@ -118,6 +118,10 @@ void *qget(queue_t *qp) {
         return NULL;
     }
 
+		if (qip->head == NULL) {
+			  return NULL;
+		}
+
     node_t *np = qip->head;
     void *datap = np->datap;
 
@@ -130,4 +134,70 @@ void *qget(queue_t *qp) {
     free(np);
 
     return datap;
+}
+
+
+/*
+ * apply a function to every element of the queue
+ *
+ * won't return anything
+ *
+ * will not know if passed function goes wrong
+ */
+
+void qapply(queue_t *qp, void (*fn)(void *elementp)) {
+	queue_impl_t *qip = qp;
+
+	if (qip == NULL) {
+		return;
+	}
+
+	node_t *np = qip->head;
+
+	while (np != NULL) {
+		void *dp = np->datap;
+		if (dp != NULL) {
+			fn(dp);
+		}
+		np = np->next;
+	}
+
+	free(np);
+
+}
+
+/*
+ * search queue using a supplied function
+ *
+ * provide a key pointer to search for and a function to search elements
+ *
+ * searchfn takes element pointer and key pointer to search for
+ *          returns a boolean
+ * returns pointer to an element or NULL if key not found
+ */
+
+void* qsearch(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp), const void *skeyp) {
+	queue_impl_t *qip = qp;
+
+	if (qip == NULL) {
+		return;
+	}
+
+	node_t *np = qip->head;
+	void *fp = NULL;
+
+	while (np != NULL) {
+		void *dp = np->datap;
+
+		if(dp != NULL) {
+			if (searchfn(dp, keyp)) {
+				fp = dp;
+			}
+		}
+
+		np = np->next;
+	}
+
+	return fp;
+
 }
