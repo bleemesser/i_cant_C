@@ -5,14 +5,15 @@
  * a saved pointer to the head and tail.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
 #include "queue.h"
 
 typedef struct node {
     struct node *next;
-    void *datap;
+    void *elementp;
 } node_t;
 
 /*
@@ -59,7 +60,7 @@ void qclose(queue_t *qp) {
     while (np != NULL) {
         node_t *nextp = np->next;
 
-        free(np->datap);
+        free(np->elementp);
         free(np);
 
         np = nextp;
@@ -71,17 +72,17 @@ void qclose(queue_t *qp) {
 /*
  * Put an element at the end of the queue (enqueue).
  *
- * `datap` may be a pointer to any type, but that pointer
+ * `elementp` may be a pointer to any type, but that pointer
  * must not be NULL.
  *
  * Will return 0 if successful.
  * Will return 1 if an invalid (null) argument is
  * passed or malloc fails to create the entry
  */
-int32_t qput(queue_t *qp, void *datap) {
+int32_t qput(queue_t *qp, void *elementp) {
     queue_impl_t *qip = qp;
 
-    if (qip == NULL || datap == NULL) {
+    if (qip == NULL || elementp == NULL) {
         return 1;
     }
 
@@ -92,7 +93,7 @@ int32_t qput(queue_t *qp, void *datap) {
 
     // since np is placed at the TAIL, it has no `next` yet
     np->next = NULL;
-    np->datap = datap;
+    np->elementp = elementp;
 
     if (qip->tail == NULL) {
         qip->head = np;
@@ -118,12 +119,12 @@ void *qget(queue_t *qp) {
         return NULL;
     }
 
-		if (qip->head == NULL) {
-			  return NULL;
-		}
+    if (qip->head == NULL) {
+        return NULL;
+    }
 
     node_t *np = qip->head;
-    void *datap = np->datap;
+    void *elementp = np->elementp;
 
     qip->head = np->next;
 
@@ -133,71 +134,62 @@ void *qget(queue_t *qp) {
 
     free(np);
 
-    return datap;
+    return elementp;
 }
 
-
 /*
- * apply a function to every element of the queue
+ * Apply a function to every element of the queue from head to tail.
  *
- * won't return anything
+ * `fn` receives an element pointer in turn and may modify the element
+ * but must NOT free it.
  *
- * will not know if passed function goes wrong
+ * Does nothing if `qp` or `fn` is NULL.
+ *
+ * Does not return a value, so a failure within `fn` cannot be detected.
  */
-
 void qapply(queue_t *qp, void (*fn)(void *elementp)) {
-	queue_impl_t *qip = qp;
+    queue_impl_t *qip = qp;
 
-	if (qip == NULL) {
-		return;
-	}
+    if (qip == NULL || fn == NULL) {
+        return;
+    }
 
-	node_t *np = qip->head;
+    node_t *np = qip->head;
 
-	while (np != NULL) {
-		void *dp = np->datap;
-		if (dp != NULL) {
-			fn(dp);
-		}
-		np = np->next;
-	}
-
-	free(np);
-
+    while (np != NULL) {
+        // SAFETY: qput rejects NULL elements, so elementp
+        // does not need a null check.
+        fn(np->elementp);
+        np = np->next;
+    }
 }
 
 /*
- * search queue using a supplied function
+ * Search the queue for the first element matching a key.
  *
- * provide a key pointer to search for and a function to search elements
+ * `searchfn` is called with each element and `skeyp` from head to tail,
+ * and must return true on a match.
  *
- * searchfn takes element pointer and key pointer to search for
- *          returns a boolean
- * returns pointer to an element or NULL if key not found
+ * The element is NOT removed from the queue, so the caller must NOT free it.
+ *
+ * Will return a pointer to the first matching element,
+ * or NULL if no element matches.
+ *
+ * Will return NULL if `qp` or `searchfn` is NULL.
  */
+void *qsearch(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
+              const void *skeyp) {
+    queue_impl_t *qip = qp;
 
-void* qsearch(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp), const void *skeyp) {
-	queue_impl_t *qip = qp;
+    if (qip == NULL || searchfn == NULL) {
+        return NULL;
+    }
 
-	if (qip == NULL) {
-		return;
-	}
+    for (node_t *np = qip->head; np != NULL; np = np->next) {
+        if (searchfn(np->elementp, skeyp)) {
+            return np->elementp;
+        }
+    }
 
-	node_t *np = qip->head;
-	void *fp = NULL;
-
-	while (np != NULL) {
-		void *dp = np->datap;
-
-		if(dp != NULL) {
-			if (searchfn(dp, keyp)) {
-				fp = dp;
-			}
-		}
-
-		np = np->next;
-	}
-
-	return fp;
-
+    return NULL;
 }
