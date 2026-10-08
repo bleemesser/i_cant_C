@@ -195,60 +195,88 @@ void *qsearch(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
 }
 
 /*
- * Search queue for first element matching a key, then remove it.
+ * Search the queue for the first element matching a key,
+ * remove it from the queue, and return a pointer to it.
  *
- * Same other specs as qsearch
+ * `searchfn` is called with each element and `skeyp` from head to tail,
+ * and must return true on a match. `skeyp` is passed to it unchecked, so a
+ * NULL `skeyp` is ok only if `searchfn` accepts it.
+ *
+ * The caller owns the returned element and must free it.
+ * The node holding it is freed here.
+ *
+ * Will return NULL if `qp` or `searchfn` is NULL,
+ * or if no element matches.
  */
 void *qremove(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
-							const void *skeyp) {
-	queue_impl_t *qip = qp;
+              const void *skeyp) {
+    queue_impl_t *qip = qp;
 
-	if (qip == NULL || searchfn == NULL) {
-		return NULL;
-	}
+    if (qip == NULL || searchfn == NULL) {
+        return NULL;
+    }
 
-	node_t *curr = qip->head;
-	node_t *prev = qip->head;
+    node_t *target = qip->head;
+    node_t *prev = NULL;
 
-	while (curr != NULL && !searchfn(curr->elementp, skeyp)) {
-		prev = curr;
-		curr = curr->next;
-	}
+    while (target != NULL && !searchfn(target->elementp, skeyp)) {
+        prev = target;
+        target = target->next;
+    }
 
-	// after loop, curr is either NULL or the target.
-	// prev is the previous
+    // after the loop target is either NULL or the match, and
+    // prev is the node before it, or NULL when target is the head
 
-	if (curr != NULL) {
-		prev->next = curr->next;
-		if (qip->tail == curr) {
-			qip->tail = prev;
-		}
-		curr->next = NULL;
-	}
+    if (target == NULL) {
+        return NULL;
+    }
 
-	return curr;
+    if (prev == NULL) {
+        qip->head = target->next;
+    } else {
+        prev->next = target->next;
+    }
+
+    if (qip->tail == target) {
+        qip->tail = prev;
+    }
+
+    target->next = NULL;
+
+    void *elementp = target->elementp;
+    free(target);
+
+    return elementp;
 }
 
 /*
- * Concatenate elements of q2 into q1
+ * Append every element of `q2p` to the end of `q1p`, in order.
  *
- * q2's elements come after q1's
+ * The nodes move rather than get copied, so element pointers
+ * remain valid. No nodes are allocated or freed.
  *
- * q2 is then closed and cannot be used
+ * `q2p` is deallocated and must not be used again.
+ * `q1p` owns the elements of `q2p` after the call.
  *
- * Does not return anything
+ * Does nothing if `q1p` or `q2p` is NULL, or if both are the same queue.
  */
 void qconcat(queue_t *q1p, queue_t *q2p) {
-	if (q1p == NULL || q2p == NULL) {
-		return;
-	}
+    if (q1p == NULL || q2p == NULL || q1p == q2p) {
+        return;
+    }
 
-	queue_t *qip1 = q1p;
-	queue_t *qip2 = q2p;
-	while (qip2->head != NULL) {
-		void *elementp = qget(qip2);
-		qput(qip1, elementp);
-	}
+    queue_impl_t *qip1 = q1p;
+    queue_impl_t *qip2 = q2p;
 
-	free(qip2);
+    if (qip1->head == NULL) {
+        qip1->head = qip2->head;
+    } else {
+        qip1->tail->next = qip2->head;
+    }
+
+    if (qip2->tail != NULL) {
+        qip1->tail = qip2->tail;
+    }
+
+    free(qip2);
 }
