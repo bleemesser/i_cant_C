@@ -189,11 +189,9 @@ static void test_search_null_fn(void) {
     int *targetp = malloc(sizeof(int));
     *targetp = 2020;
 
-    int *elems[5];
     for (int i = 0; i < 5; i++) {
         int *ep = malloc(sizeof(int));
         *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
-        elems[i] = ep;
         check(qput(qp, ep) == 0, "item added to queue");
     }
 
@@ -358,22 +356,124 @@ static void test_remove_middle(void) {
 
     check(qremove(qp, find_int_match, targetp) == elems[2],
           "search returns correct ep at front");
-    check(qip->head->next->next->elementp == elems[3], "target in middle removed");
+    check(qip->head->next->next->elementp == elems[3],
+          "target in middle removed");
 
     qclose(qp);
     free(targetp);
     free(elems[2]);
 }
 
-static void test_concat_null_q1(void);
+static void test_concat_null_q1(void) {
+    queue_t *qp = qopen();
+    queue_impl_t *qip = qp;
+    check(qp != NULL, "qopen returns a queue");
 
-static void test_concat_null_q2(void);
+    int *e1 = malloc(sizeof(int));
+    *e1 = 2020;
+    check(qput(qp, e1) == 0, "item added to queue");
 
-static void test_concat_empty_q1(void);
+    qconcat(NULL, qp);  // expect not to crash
+    check(qip->head->elementp == e1, "NULL q1p leaves the second queue intact");
 
-static void test_concat_empty_q2(void);
+    qclose(qp);
+}
 
-static void test_concat_nonempty(void);
+static void test_concat_null_q2(void) {
+    queue_t *qp = qopen();
+    queue_impl_t *qip = qp;
+    check(qp != NULL, "qopen returns a queue");
+
+    int *e1 = malloc(sizeof(int));
+    *e1 = 2020;
+    check(qput(qp, e1) == 0, "item added to queue");
+
+    qconcat(qp, NULL);  // expect not to crash
+    check(qip->head->elementp == e1, "NULL q2p leaves the first queue intact");
+
+    qclose(qp);
+}
+
+static void test_concat_empty_q1(void) {
+    queue_t *q1 = qopen();
+    queue_t *q2 = qopen();
+    queue_impl_t *qip1 = q1;
+    check(q1 != NULL, "qopen returns q1");
+    check(q2 != NULL, "qopen returns q2");
+
+    int *e1 = malloc(sizeof(int));
+    int *e2 = malloc(sizeof(int));
+    *e1 = 2020;
+    *e2 = 2021;
+    check(qput(q2, e1) == 0, "item added to q2");
+    check(qput(q2, e2) == 0, "item added to q2");
+
+    qconcat(q1, q2);  // q2 is deallocated here, no close later
+    check(qip1->head->elementp == e1, "empty q1 gets nodes of q2");
+
+    // a q1 whose tail was not moved with the nodes has a NULL tail, and the
+    // next qput would then drop the moved nodes
+    int *e3 = malloc(sizeof(int));
+    *e3 = 2022;
+    check(qput(q1, e3) == 0, "qput after concat works on a q1 that was empty");
+    check(qip1->head->elementp == e1 && qip1->head->next->elementp == e2,
+          "qput after concat keeps the nodes that were added");
+    check(qip1->tail->elementp == e3 && qip1->tail->next == NULL,
+          "tail of the previously empty q1 sits at the end of the chain");
+
+    qclose(q1);
+}
+
+static void test_concat_empty_q2(void) {
+    queue_t *q1 = qopen();
+    queue_t *q2 = qopen();
+    queue_impl_t *qip1 = q1;
+    check(q1 != NULL, "qopen returns q1");
+    check(q2 != NULL, "qopen returns q2");
+
+    int *e1 = malloc(sizeof(int));
+    *e1 = 2020;
+    check(qput(q1, e1) == 0, "item added to q1");
+
+    qconcat(q1, q2);  // q2 holds nothing, and is deallocated here
+    check(qip1->head->elementp == e1, "empty q2 leaves the head of q1 alone");
+    check(qip1->tail->elementp == e1 && qip1->tail->next == NULL,
+          "empty q2 leaves the tail of q1 alone");
+
+    qclose(q1);
+}
+
+static void test_concat_nonempty(void) {
+    queue_t *q1 = qopen();
+    queue_t *q2 = qopen();
+    queue_impl_t *qip1 = q1;
+    check(q1 != NULL, "qopen returns q1");
+    check(q2 != NULL, "qopen returns q2");
+
+    int *e1 = malloc(sizeof(int));
+    int *e2 = malloc(sizeof(int));
+    int *e3 = malloc(sizeof(int));
+    int *e4 = malloc(sizeof(int));
+    *e1 = 2018;
+    *e2 = 2019;
+    *e3 = 2020;
+    *e4 = 2021;
+    check(qput(q1, e1) == 0, "item added to q1");
+    check(qput(q1, e2) == 0, "item added to q1");
+    check(qput(q2, e3) == 0, "item added to q2");
+    check(qput(q2, e4) == 0, "item added to q2");
+
+    qconcat(q1, q2);  // q2 is deallocated here, do not close it
+
+    check(qip1->head->elementp == e1 && qip1->head->next->elementp == e2,
+          "concat keeps the q1 elements at the front");
+    check(qip1->head->next->next->elementp == e3,
+          "concat puts the q2 elements after the q1 elements");
+    check(qip1->tail->elementp == e4 && qip1->tail->next == NULL,
+          "concat moves the tail to the last element of q2");
+
+    qclose(q1);
+}
 
 int main(void) {
     test_open_and_close_empty();
@@ -398,6 +498,11 @@ int main(void) {
     test_remove_front();
     test_remove_back();
     test_remove_middle();
+    test_concat_null_q1();
+    test_concat_null_q2();
+    test_concat_empty_q1();
+    test_concat_empty_q2();
+    test_concat_nonempty();
 
     if (failures > 0) {
         printf("%d checks failed\n", failures);
