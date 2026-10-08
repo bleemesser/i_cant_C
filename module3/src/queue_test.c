@@ -21,8 +21,19 @@ static void check(bool cond, char *msg) {
 }
 
 // multiply element by 2 as an int, for testing qapply
-static void times_two(void* elementp) {
-    *(int*)elementp *= 2;
+static void times_two(void *elementp) {
+    if (elementp == NULL) {
+        return;
+    }
+    *(int *)elementp *= 2;
+}
+
+static bool find_int_match(void *elementp, const void *keyp) {
+    if (elementp == NULL || keyp == NULL) {
+        return false;
+    }
+
+    return *(int *)elementp == *(int *)keyp;
 }
 
 static void test_open_and_close_empty(void) {
@@ -57,6 +68,7 @@ static void test_put_null_qp(void) {
     *yearp = 2020;
 
     check(qput(NULL, yearp) == 1, "qput rejects a NULL qp");
+    free(yearp);
 }
 
 static void test_put_null_element(void) {
@@ -123,17 +135,20 @@ static void test_get_valid(void) {
     check(qip->tail == NULL, "get fixes tail");
 
     qclose(qp);
+    free(e1);
+    free(e2);
 }
 
 static void test_apply_null_qp(void) {
-    qapply(NULL, times_two); // expect not to crash ¯\_(ツ)_/¯
+    qapply(NULL, times_two);  // expect not to crash ¯\_(ツ)_/¯
 }
 
 static void test_apply_null_fn(void) {
-    queue_t* qp = qopen();
+    queue_t *qp = qopen();
     check(qp != NULL, "qopen returns a queue");
 
-    qapply(qp, NULL); // don't crash pls
+    qapply(qp, NULL);  // don't crash pls
+    qclose(qp);
 }
 
 static void test_apply_valid(void) {
@@ -154,17 +169,102 @@ static void test_apply_valid(void) {
     check(qget(qp) == e2 && *e2 == 4042, "second element is updated in-place");
 
     qclose(qp);
+    free(e1);
+    free(e2);
 }
 
-static void test_search_null_qp(void);
+static void test_search_null_qp(void) {
+    int *yearp = malloc(sizeof(int));
+    *yearp = 2020;
 
-static void test_search_null_fn(void);
+    check(qsearch(NULL, find_int_match, yearp) == NULL,
+          "search on NULL qp returns NULL");
+    free(yearp);
+}
 
-static void test_search_front(void);
+static void test_search_null_fn(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
 
-static void test_search_back(void);
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2020;
 
-static void test_search_middle(void);
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qsearch(qp, NULL, targetp) == NULL,
+          "search returns NULL if fn is NULL");
+    qclose(qp);
+    free(targetp);
+}
+
+static void test_search_front(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2018;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qsearch(qp, find_int_match, targetp) == elems[0],
+          "search returns correct ep at front");
+    qclose(qp);
+    free(targetp);
+}
+
+static void test_search_back(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2022;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qsearch(qp, find_int_match, targetp) == elems[4],
+          "search returns correct ep at front");
+    qclose(qp);
+    free(targetp);
+}
+
+static void test_search_middle(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2020;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qsearch(qp, find_int_match, targetp) == elems[2],
+          "search returns correct ep in middle");
+    qclose(qp);
+    free(targetp);
+}
 
 static void test_remove_null_qp(void);
 
@@ -199,6 +299,11 @@ int main(void) {
     test_apply_null_qp();
     test_apply_null_fn();
     test_apply_valid();
+    test_search_null_qp();
+    test_search_null_fn();
+    test_search_front();
+    test_search_back();
+    test_search_middle();
 
     if (failures > 0) {
         printf("%d checks failed\n", failures);
