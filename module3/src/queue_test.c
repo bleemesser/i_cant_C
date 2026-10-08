@@ -240,7 +240,7 @@ static void test_search_back(void) {
     }
 
     check(qsearch(qp, find_int_match, targetp) == elems[4],
-          "search returns correct ep at front");
+          "search returns correct ep at back");
     qclose(qp);
     free(targetp);
 }
@@ -266,15 +266,104 @@ static void test_search_middle(void) {
     free(targetp);
 }
 
-static void test_remove_null_qp(void);
+static void test_remove_null_qp(void) {
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2020;
 
-static void test_remove_null_fn(void);
+    check(qremove(NULL, find_int_match, targetp) == NULL,
+          "qremove returns NULL with NULL qp");
 
-static void test_remove_front(void);
+    free(targetp);
+}
 
-static void test_remove_back(void);
+static void test_remove_null_fn(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
 
-static void test_remove_middle(void);
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2020;
+
+    check(qremove(qp, NULL, targetp) == NULL,
+          "qremove returns NULL with NULL qp");
+
+    free(targetp);
+    qclose(qp);
+}
+
+static void test_remove_front(void) {
+    queue_t *qp = qopen();
+    queue_impl_t *qip = qp;
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2018;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qremove(qp, find_int_match, targetp) == elems[0],
+          "search returns correct ep at front");
+    check(qip->head->elementp == elems[1], "target at beginning removed");
+
+    qclose(qp);
+    free(targetp);
+    free(elems[0]);
+}
+
+static void test_remove_back(void) {
+    queue_t *qp = qopen();
+    queue_impl_t *qip = qp;
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2022;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qremove(qp, find_int_match, targetp) == elems[4],
+          "search returns correct ep at front");
+    check(qip->tail->elementp == elems[3], "target at end removed");
+
+    qclose(qp);
+    free(targetp);
+    free(elems[4]);
+}
+
+static void test_remove_middle(void) {
+    queue_t *qp = qopen();
+    queue_impl_t *qip = qp;
+    check(qp != NULL, "qopen returns a queue");
+
+    int *targetp = malloc(sizeof(int));
+    *targetp = 2020;
+
+    int *elems[5];
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;  // [2018, 2019, 2020, 2021, 2022]
+        elems[i] = ep;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    check(qremove(qp, find_int_match, targetp) == elems[2],
+          "search returns correct ep at front");
+    check(qip->head->next->next->elementp == elems[3], "target in middle removed");
+
+    qclose(qp);
+    free(targetp);
+    free(elems[2]);
+}
 
 static void test_concat_null_q1(void);
 
@@ -304,6 +393,11 @@ int main(void) {
     test_search_front();
     test_search_back();
     test_search_middle();
+    test_remove_null_qp();
+    test_remove_null_fn();
+    test_remove_front();
+    test_remove_back();
+    test_remove_middle();
 
     if (failures > 0) {
         printf("%d checks failed\n", failures);
