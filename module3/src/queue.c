@@ -193,3 +193,62 @@ void *qsearch(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
 
     return NULL;
 }
+
+/*
+ * Search queue for first element matching a key, then remove it.
+ *
+ * Same other specs as qsearch
+ */
+void *qremove(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
+							const void *skeyp) {
+	queue_impl_t *qip = qp;
+
+	if (qip == NULL || searchfn == NULL) {
+		return NULL;
+	}
+
+	node_t *curr = qip->head;
+	node_t *prev = qip->head;
+
+	while (curr != NULL && !searchfn(curr->elementp, skeyp)) {
+		prev = curr;
+		curr = curr->next;
+	}
+
+	// after loop, curr is either NULL or the target.
+	// prev is the previous
+
+	if (curr != NULL) {
+		prev->next = curr->next;
+		if (qip->tail == curr) {
+			qip->tail = prev;
+		}
+		curr->next = NULL;
+	}
+
+	return curr;
+}
+
+/*
+ * Concatenate elements of q2 into q1
+ *
+ * q2's elements come after q1's
+ *
+ * q2 is then closed and cannot be used
+ *
+ * Does not return anything
+ */
+void qconcat(queue_t *q1p, queue_t *q2p) {
+	if (q1p == NULL || q2p == NULL) {
+		return;
+	}
+
+	queue_t *qip1 = q1p;
+	queue_t *qip2 = q2p;
+	while (qip2->head != NULL) {
+		void *elementp = qget(qip2);
+		qput(qip1, elementp);
+	}
+
+	free(qip2);
+}
