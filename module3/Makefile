@@ -16,8 +16,8 @@ list_test: src/list.c include/list.h src/list_test.c
 	gcc $(CFLAGS) -o list_test src/list_test.c
 
 
-queue_test: queue.o queue_test.o
-	gcc $(CFLAGS) $^ -o $@
+queue_test: src/queue.c include/queue.h src/queue_test.c
+	gcc $(CFLAGS) -o queue_test src/queue_test.c
 
 
 hash_test: hash.o queue.o hash_test.o
