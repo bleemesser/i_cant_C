@@ -44,7 +44,11 @@ queue_t *qopen(void) {
 }
 
 /*
- * Frees all nodes, contained data, and the queue itself.
+ * Frees all nodes and the queue itself.
+ * Does NOT free any stored elements, those must be
+ * managed by the caller.
+ *
+ * To easily free all stored elements, use `qapply(qp, free)`
  *
  * `qp` becomes invalid ptr after calling.
  */
@@ -60,7 +64,7 @@ void qclose(queue_t *qp) {
     while (np != NULL) {
         node_t *nextp = np->next;
 
-        free(np->elementp);
+        // free(np->elementp);
         free(np);
 
         np = nextp;

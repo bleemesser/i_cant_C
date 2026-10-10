@@ -28,6 +28,13 @@ static void times_two(void *elementp) {
     *(int *)elementp *= 2;
 }
 
+/*
+ * Compare elementp and keyp by value, assuming they are int*
+ * for testing purposes.
+ *
+ * Returns false if either pointer is null, or if they do not match
+ * Returns true on a match.
+ */
 static bool find_int_match(void *elementp, const void *keyp) {
     if (elementp == NULL || keyp == NULL) {
         return false;
@@ -60,6 +67,7 @@ static void test_close_nonempty(void) {
     check(qip->head->elementp == yearp, "element placed at head");
     check(qip->tail->elementp == yearp, "tail pointed at head at size 1");
 
+    qapply(qp, free);
     qclose(qp);  // expect no valgrind error
 }
 
@@ -99,6 +107,7 @@ static void test_put_valid(void) {
     check(qip->tail->elementp == e2, "elem 2 placed at tail");
     check(qip->tail->next == NULL, "tail points to NULL");
 
+    qapply(qp, free);
     qclose(qp);
 }
 
@@ -197,6 +206,8 @@ static void test_search_null_fn(void) {
 
     check(qsearch(qp, NULL, targetp) == NULL,
           "search returns NULL if fn is NULL");
+
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
 }
@@ -218,6 +229,8 @@ static void test_search_front(void) {
 
     check(qsearch(qp, find_int_match, targetp) == elems[0],
           "search returns correct ep at front");
+
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
 }
@@ -239,6 +252,8 @@ static void test_search_back(void) {
 
     check(qsearch(qp, find_int_match, targetp) == elems[4],
           "search returns correct ep at back");
+
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
 }
@@ -260,6 +275,8 @@ static void test_search_middle(void) {
 
     check(qsearch(qp, find_int_match, targetp) == elems[2],
           "search returns correct ep in middle");
+
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
 }
@@ -280,6 +297,8 @@ static void test_remove_null_fn(void) {
 
     int *targetp = malloc(sizeof(int));
     *targetp = 2020;
+
+    check(qput(qp, targetp) == 0, "item added to queue");
 
     check(qremove(qp, NULL, targetp) == NULL,
           "qremove returns NULL with NULL qp");
@@ -308,6 +327,7 @@ static void test_remove_front(void) {
           "search returns correct ep at front");
     check(qip->head->elementp == elems[1], "target at beginning removed");
 
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
     free(elems[0]);
@@ -333,6 +353,7 @@ static void test_remove_back(void) {
           "search returns correct ep at front");
     check(qip->tail->elementp == elems[3], "target at end removed");
 
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
     free(elems[4]);
@@ -359,6 +380,7 @@ static void test_remove_middle(void) {
     check(qip->head->next->next->elementp == elems[3],
           "target in middle removed");
 
+    qapply(qp, free);
     qclose(qp);
     free(targetp);
     free(elems[2]);
@@ -376,6 +398,7 @@ static void test_concat_null_q1(void) {
     qconcat(NULL, qp);  // expect not to crash
     check(qip->head->elementp == e1, "NULL q1p leaves the second queue intact");
 
+    qapply(qp, free);
     qclose(qp);
 }
 
@@ -391,6 +414,7 @@ static void test_concat_null_q2(void) {
     qconcat(qp, NULL);  // expect not to crash
     check(qip->head->elementp == e1, "NULL q2p leaves the first queue intact");
 
+    qapply(qp, free);
     qclose(qp);
 }
 
@@ -421,6 +445,7 @@ static void test_concat_empty_q1(void) {
     check(qip1->tail->elementp == e3 && qip1->tail->next == NULL,
           "tail of the previously empty q1 sits at the end of the chain");
 
+    qapply(q1, free);
     qclose(q1);
 }
 
@@ -440,6 +465,7 @@ static void test_concat_empty_q2(void) {
     check(qip1->tail->elementp == e1 && qip1->tail->next == NULL,
           "empty q2 leaves the tail of q1 alone");
 
+    qapply(q1, free);
     qclose(q1);
 }
 
@@ -472,6 +498,7 @@ static void test_concat_nonempty(void) {
     check(qip1->tail->elementp == e4 && qip1->tail->next == NULL,
           "concat moves the tail to the last element of q2");
 
+    qapply(q1, free);
     qclose(q1);
 }
 

@@ -24,7 +24,7 @@ hash_test: hash.o queue.o hash_test.o
 	gcc $(CFLAGS) $^ -o $@
 
 
-valgrind: list_test
+valgrind: list_test queue_test
 	./valgrind.sh
 
 
