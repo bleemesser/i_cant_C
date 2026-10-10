@@ -4,8 +4,11 @@
  */
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 #include "queue.h"
+#include "hash.h"
 
 /*
  * SuperFastHash() -- produces a number between 0 and the tablesize-1.
@@ -95,7 +98,7 @@ hashtable_t *hopen(uint32_t hsize) {
 			 return NULL;
 		 }
 
-		 for (uint32_t i = 0; i < hsize; i++) {
+		 for (int i = 0; i < hsize; i++) {
 			 htip->arrayp[i] = NULL;
 		 }
 	}
@@ -154,4 +157,29 @@ int32_t hput(hashtable_t *htp, void *ep, const char *key, int keylen) {
 	int32_t check = qput(htip->arrayp[hash], ep);
 
 	return check;
+}
+
+
+/*
+ * Apply a function to every element stored in the hashtable.
+ *
+ * `fn` receives an element pointer in turn and may modify the element
+ * but must NOT free it.
+ *
+ * Does nothing if `htp` or `fn` is NULL.
+ *
+ * Does not return a value, so a failure within `fn` cannot be detected.
+ */
+void happly(hashtable_t *htp, void (*fn)(void* ep)) {
+	hash_impl_t *htip = htp;
+
+	if (htip == NULL || fn == NULL) {
+		return;
+	}
+
+	for (uint32_t i = 0; i < htip->size; i++) {
+		queue_t *qp = htip->arrayp[i];
+		qapply(qp, fn); //qapply can deal with NULL pointers (i.e. do nothing and return)
+	}
+	
 }
