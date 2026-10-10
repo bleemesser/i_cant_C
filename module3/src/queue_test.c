@@ -47,7 +47,7 @@ static void test_open_and_close_empty(void) {
     queue_t *qp = qopen();
     queue_impl_t *qip = qp;
     check(qp != NULL, "qopen returns a queue");
-    check(qip->head == NULL, "queue head initializedd empty");
+    check(qip->head == NULL, "queue head initialized empty");
     check(qip->tail == NULL, "queue tail initialized empty");
 
     qclose(qp);  // expect no valgrind error
@@ -301,10 +301,10 @@ static void test_remove_null_fn(void) {
     check(qput(qp, targetp) == 0, "item added to queue");
 
     check(qremove(qp, NULL, targetp) == NULL,
-          "qremove returns NULL with NULL qp");
+          "qremove returns NULL with NULL fn");
 
-    free(targetp);
     qclose(qp);
+    free(targetp);
 }
 
 static void test_remove_front(void) {
@@ -324,7 +324,7 @@ static void test_remove_front(void) {
     }
 
     check(qremove(qp, find_int_match, targetp) == elems[0],
-          "search returns correct ep at front");
+          "remove returns correct ep at front");
     check(qip->head->elementp == elems[1], "target at beginning removed");
 
     qapply(qp, free);
@@ -350,7 +350,7 @@ static void test_remove_back(void) {
     }
 
     check(qremove(qp, find_int_match, targetp) == elems[4],
-          "search returns correct ep at front");
+          "remove returns correct ep at back");
     check(qip->tail->elementp == elems[3], "target at end removed");
 
     qapply(qp, free);
@@ -376,7 +376,7 @@ static void test_remove_middle(void) {
     }
 
     check(qremove(qp, find_int_match, targetp) == elems[2],
-          "search returns correct ep at front");
+          "remove returns correct ep at middle");
     check(qip->head->next->next->elementp == elems[3],
           "target in middle removed");
 

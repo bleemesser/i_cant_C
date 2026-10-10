@@ -245,8 +245,6 @@ void *qremove(queue_t *qp, bool (*searchfn)(void *elementp, const void *keyp),
         qip->tail = prev;
     }
 
-    target->next = NULL;
-
     void *elementp = target->elementp;
     free(target);
 
