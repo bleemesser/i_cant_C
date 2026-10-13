@@ -189,3 +189,31 @@ void happly(hashtable_t *htp, void (*fn)(void *ep)) {
         qapply(htip->arrayp[i], fn);  // qapply does nothing if queue is NULL
     }
 }
+
+/*
+ * Search the bucket that `key` hashes to for the element matching `key`.
+ *
+ * `searchfn` is called with each element of that bucket and `key`,
+ * and must return true on a match. The table does not interpret `key`,
+ * it only hashes it and passes it to `searchfn` unchanged, so how an
+ * element is matched to a key is up to `searchfn`.
+ *
+ * The element is NOT removed from the table, so the caller must NOT free it.
+ *
+ * Will return a pointer to the first matching element, or NULL if no element matches.
+ * Will also return NULL if a null pointer is passed or `keylen` is not positive.
+ */
+void *hsearch(hashtable_t *htp,
+              bool (*searchfn)(void *elementp, const void *searchkeyp),
+              const char *key, int32_t keylen) {
+    hash_impl_t* htip = htp;
+
+    if (htip == NULL || searchfn == NULL || key == NULL || keylen <= 0) {
+        return NULL;
+    }
+
+    uint32_t hash = SuperFastHash(key, keylen, htip->size);
+
+    // qsearch returns NULL if the queue is NULL
+    return qsearch(htip->arrayp[hash], searchfn, key);
+}
