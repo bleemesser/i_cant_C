@@ -1,10 +1,13 @@
-all: utils crawler
+.PHONY: all utils crawler test valgrind clean
+
+all:
+	$(MAKE) -C utils all
+	$(MAKE) -C crawler
 
 utils:
-	mkdir -p lib
 	$(MAKE) -C utils all
 
-crawler: utils
+crawler:
 	$(MAKE) -C crawler
 
 test:

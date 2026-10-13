@@ -1,11 +1,12 @@
 CFLAGS= -Wall -pedantic -std=c11 -Iinclude -g
 OFILES=queue.o hash.o webpage.o
+LIB=../lib/libutils.a
 
-all: $(OFILES) utils
+all: $(LIB)
 
-utils: $(OFILES)
+$(LIB): $(OFILES)
 	mkdir -p ../lib
-	ar cr ../lib/libutils.a $(OFILES)
+	ar cr $@ $(OFILES)
 
 test: hash_test list_test queue_test
 	./hash_test
