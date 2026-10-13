@@ -115,7 +115,10 @@ hashtable_t *hopen(uint32_t hsize) {
 }
 
 /*
- * Close all queues and then the hashtable
+ * Frees all buckets and the table itself.
+ * Elements are NOT freed, those are owned by the caller.
+ *
+ * To free stored elements, use `happly(htp, free)`
  *
  *`htp` becomes invalid pointer after calling
  */
@@ -127,7 +130,7 @@ void hclose(hashtable_t *htp) {
     }
 
     for (uint32_t i = 0; i < htip->size; i++) {
-        qclose(htip->arrayp[i]);
+        qclose(htip->arrayp[i]);  // does nothing if queue is NULL
     }
 
     free(htip->arrayp);
@@ -135,14 +138,14 @@ void hclose(hashtable_t *htp) {
 }
 
 /*
- * Put entry in hashtable given the designated key
+ * Place an element into the bucket that `key` hashes to.
  *
- * Returns 0 if successful
- * Returns 1 if invalid arguments
- *        or if qopen/qput failed
+ * `ep` must not be NULL and `key` must point to `keylen` bytes that
+ * identify the element. The key itself is not stored, caller must track.
  *
- * User should remember what `key` was used to insert `ep`,
- * otherwise it may not be retrievable
+ * Will return 0 if successful.
+ * Will return 1 if an invalid (null) argument is passed, if `keylen` is
+ * not positive, or if malloc fails to open the bucket or create the entry.
  */
 int32_t hput(hashtable_t *htp, void *ep, const char *key, int keylen) {
     hash_impl_t *htip = htp;
@@ -162,9 +165,7 @@ int32_t hput(hashtable_t *htp, void *ep, const char *key, int keylen) {
         return 1;
     }
 
-    int32_t check = qput(htip->arrayp[hash], ep);
-
-    return check;
+    return qput(htip->arrayp[hash], ep);
 }
 
 /*

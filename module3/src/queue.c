@@ -64,7 +64,6 @@ void qclose(queue_t *qp) {
     while (np != NULL) {
         node_t *nextp = np->next;
 
-        // free(np->elementp);
         free(np);
 
         np = nextp;
