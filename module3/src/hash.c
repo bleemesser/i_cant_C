@@ -130,7 +130,7 @@ void hclose(hashtable_t *htp) {
     }
 
     for (uint32_t i = 0; i < htip->size; i++) {
-        qclose(htip->arrayp[i]);  // does nothing if queue is NULL
+        qclose(htip->arrayp[i]);  // does nothing if queue ptr is NULL
     }
 
     free(htip->arrayp);
@@ -186,7 +186,8 @@ void happly(hashtable_t *htp, void (*fn)(void *ep)) {
     }
 
     for (uint32_t i = 0; i < htip->size; i++) {
-        qapply(htip->arrayp[i], fn);  // qapply does nothing if queue is NULL
+        qapply(htip->arrayp[i],
+               fn);  // qapply does nothing if queue ptr is NULL
     }
 }
 
@@ -206,7 +207,7 @@ void happly(hashtable_t *htp, void (*fn)(void *ep)) {
 void *hsearch(hashtable_t *htp,
               bool (*searchfn)(void *elementp, const void *searchkeyp),
               const char *key, int32_t keylen) {
-    hash_impl_t* htip = htp;
+    hash_impl_t *htip = htp;
 
     if (htip == NULL || searchfn == NULL || key == NULL || keylen <= 0) {
         return NULL;
@@ -214,6 +215,34 @@ void *hsearch(hashtable_t *htp,
 
     uint32_t hash = SuperFastHash(key, keylen, htip->size);
 
-    // qsearch returns NULL if the queue is NULL
+    // qsearch returns NULL if the queue ptr is NULL
     return qsearch(htip->arrayp[hash], searchfn, key);
+}
+
+/*
+ * Search the bucket that `key` hashes to for the element matching `key`,
+ * REMOVE it from the table, and return a pointer to it.
+ *
+ * `searchfn` is called with each element of that bucket and `key`,
+ * and must return true on a match.
+ *
+ * The caller owns the returned element and must free it.
+ * The queue node is freed.
+ *
+ * Will return NULL if `htp`, `searchfn` or `key` is NULL,
+ * if `keylen` is not positive, or if no element matches.
+ */
+void *hremove(hashtable_t *htp,
+              bool (*searchfn)(void *elementp, const void *searchkeyp),
+              const char *key, int32_t keylen) {
+    hash_impl_t *htip = htp;
+
+    if (htip == NULL || searchfn == NULL || key == NULL || keylen <= 0) {
+        return NULL;
+    }
+
+    uint32_t hash = SuperFastHash(key, keylen, htip->size);
+
+    // qremove returns NULL if the queue ptr is NULL
+    return qremove(htip->arrayp[hash], searchfn, key);
 }
