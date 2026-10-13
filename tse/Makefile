@@ -1,4 +1,4 @@
-all: library crawler
+all: utils crawler
 
 utils:
 	mkdir -p lib
