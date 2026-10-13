@@ -11,7 +11,6 @@ test: hash_test list_test queue_test
 	gcc $(CFLAGS) -c $<
 
 
-# list_test.c includes list.c directly, so list.o must not be linked
 list_test: src/list.c include/list.h src/list_test.c
 	gcc $(CFLAGS) -o list_test src/list_test.c
 
@@ -20,11 +19,11 @@ queue_test: src/queue.c include/queue.h src/queue_test.c
 	gcc $(CFLAGS) -o queue_test src/queue_test.c
 
 
-hash_test: hash.o queue.o hash_test.o
-	gcc $(CFLAGS) $^ -o $@
+hash_test: src/hash.c src/queue.c include/hash.h include/queue.h src/hash_test.c
+	gcc $(CFLAGS) -o hash_test src/hash_test.c
 
 
-valgrind: list_test queue_test
+valgrind: list_test queue_test hash_test
 	./valgrind.sh
 
 
