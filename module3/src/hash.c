@@ -186,9 +186,6 @@ void happly(hashtable_t *htp, void (*fn)(void *ep)) {
     }
 
     for (uint32_t i = 0; i < htip->size; i++) {
-        queue_t *qp = htip->arrayp[i];
-        qapply(
-            qp,
-            fn);  // qapply can deal with NULL pointers (i.e. do nothing and return)
+        qapply(htip->arrayp[i], fn);  // qapply does nothing if queue is NULL
     }
 }
