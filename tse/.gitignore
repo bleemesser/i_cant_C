@@ -1,0 +1,11 @@
+*.o
+*.a
+hash_test
+queue_test
+list_test
+/crawler/crawler
+valgrind.log
+*~
+\#*\#
+.\#*
+*.dSYM
