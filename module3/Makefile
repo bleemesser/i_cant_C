@@ -3,6 +3,9 @@ CFLAGS= -Wall -pedantic -std=c11 -Iinclude -g
 all: test
 
 test: hash_test list_test queue_test
+	./hash_test
+	./list_test
+	./queue_test
 
 %.o: src/%.c include/%.h
 	gcc $(CFLAGS) -c $<
@@ -23,7 +26,7 @@ hash_test: src/hash.c src/queue.c include/hash.h include/queue.h src/hash_test.c
 	gcc $(CFLAGS) -o hash_test src/hash_test.c
 
 
-valgrind: list_test queue_test hash_test
+valgrind: test
 	./valgrind.sh
 
 
