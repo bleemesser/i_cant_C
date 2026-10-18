@@ -4,13 +4,16 @@ LIB=../lib/libutils.a
 
 all: crawler
 
-.PHONY: all
+.PHONY: all valgrind clean
 
 crawler: src/crawler.c $(LIB)
 	gcc $(CFLAGS) src/crawler.c $(LIBS) -o $@
 
 $(LIB):
 	$(MAKE) -C ../utils
+
+valgrind: crawler
+	./valgrind.sh
 
 clean:
 	rm -f crawler

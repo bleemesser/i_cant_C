@@ -15,6 +15,7 @@ test:
 
 valgrind:
 	$(MAKE) -C utils valgrind
+	$(MAKE) -C crawler valgrind
 
 clean:
 	$(MAKE) -C utils clean
