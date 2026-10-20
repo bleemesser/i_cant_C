@@ -1,5 +1,5 @@
 /*
- * crawler.c -- implements a webpage crawler using a hash table and queue.
+ * crawler.c -- crawl the provided site and save found pages to disk
  *
  * Steps Completed:
  *      2. Fetch One Page
@@ -8,31 +8,26 @@
  *      5. Save One Page
  */
 
+#include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "hash.h"
 #include "queue.h"
 #include "webpage.h"
 
-#define ROOT_URL "https://thayer.github.io/engs50/"
 #define TABLE_SIZE 100
-#define PAGES_DIR "pages"
 #define MAX_FILENAME_BYTES 1024
 
 // Match a stored url against a search key, for hsearch.
 static bool url_match(void *elementp, const void *keyp) {
     return strcmp(elementp, keyp) == 0;
-}
-
-// Print the depth and url of a webpage, for qapply.
-static void print_page(void *elementp) {
-    webpage_t *page = elementp;
-    printf("%d %s\n", webpage_getDepth(page), webpage_getURL(page));
 }
 
 /*
@@ -111,7 +106,7 @@ static int32_t pagesave(webpage_t *pagep, int32_t id, char *dirname) {
     int html_len_bytes = (int)strlen(webpage_getHTML(pagep));
 
     fprintf(fp, "%s\n%d\n%d\n", webpage_getURL(pagep), webpage_getDepth(pagep),
-         html_len_bytes);
+            html_len_bytes);
 
     fwrite(webpage_getHTML(pagep), sizeof(char), html_len_bytes, fp);
 
@@ -122,56 +117,156 @@ static int32_t pagesave(webpage_t *pagep, int32_t id, char *dirname) {
     return 0;
 }
 
-int main(void) {
-    webpage_t *root_page = webpage_new(ROOT_URL, 0, NULL);
+// Print the cli format
+static void print_usage(void) {
+    printf("usage: crawler <seedurl> <pagedir> <maxdepth>\n");
+}
 
-    if (root_page == NULL || !webpage_fetch(root_page)) {
-        webpage_delete(root_page);
-        exit(EXIT_FAILURE);
+/*
+ * Parse maxdepth from the argument
+ *
+ * Returns true and stores the value if INT_MAX >= arg >= 0,
+ * otherwise returns false.
+ */
+static bool parse_maxdepth(const char *arg, int *depthp) {
+    if (arg == NULL) {
+        return false;
     }
 
-    queue_t *fetch_queue = qopen();
-    hashtable_t *visited_tb = hopen(TABLE_SIZE);
-
-    if (fetch_queue == NULL || visited_tb == NULL ||
-        qput(fetch_queue, root_page) != 0 ||
-        !mark_visited(visited_tb, ROOT_URL)) {
-        qclose(fetch_queue);
-        hclose(visited_tb);
-        webpage_delete(root_page);
-        exit(EXIT_FAILURE);
+    errno = 0;
+    char *end = NULL;
+    long value = strtol(arg, &end, 10);
+    if (errno != 0 || end == arg || *end != '\0' || value < 0 ||
+        value > INT_MAX) {
+        return false;
     }
 
-    // must write raw seed page before the url search compresses the html
-    bool ok = (pagesave(root_page, 1, PAGES_DIR) == 0);
-    if (!ok) {
-        printf("pagesave failed\n");
+    *depthp = (int)value;
+    return true;
+}
+
+// Return true if `path` is a directory that exists and is writable
+static bool is_writable_dir(const char *path) {
+    struct stat st;
+
+    if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        return false;
     }
 
+    return access(path, W_OK) == 0;
+}
+
+/*
+ * Add every internal link in `page` that has not been visited to `todo` at
+ * one greater depth.
+ *
+ * Marks a link as visited even if its page cannot be allocated or queued,
+ * to prevent loops.
+ */
+static void enqueue_links(queue_t *todo, hashtable_t *visited,
+                          webpage_t *page) {
     int pos = 0;
     char *url = NULL;
 
-    while ((pos = webpage_getNextURL(root_page, pos, &url)) > 0) {
-        if (IsInternalURL(url) && mark_visited(visited_tb, url)) {
-            webpage_t *page =
-                webpage_new(url, webpage_getDepth(root_page) + 1, NULL);
+    while ((pos = webpage_getNextURL(page, pos, &url)) > 0) {
+        if (IsInternalURL(url) && mark_visited(visited, url)) {
+            webpage_t *child =
+                webpage_new(url, webpage_getDepth(page) + 1, NULL);
 
-            if (qput(fetch_queue, page) != 0) {
-                webpage_delete(page);
+            if (child == NULL || qput(todo, child) != 0) {
+                if (child != NULL) {
+                    webpage_delete(child);
+                }
             }
         }
 
         free(url);
         url = NULL;
     }
+}
 
-    qapply(fetch_queue, print_page);
+// Free all contained entries in the queue and hash table, then close them
+static void cleanup(queue_t *todo, hashtable_t *visited) {
+    if (todo != NULL) {
+        qapply(todo, webpage_delete);
+        qclose(todo);
+    }
 
-    qapply(fetch_queue, webpage_delete);
-    qclose(fetch_queue);
+    if (visited != NULL) {
+        happly(visited, free);
+        hclose(visited);
+    }
+}
 
-    happly(visited_tb, free);
-    hclose(visited_tb);
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
 
-    exit(ok ? EXIT_SUCCESS : EXIT_FAILURE);
+    char *seed_url = argv[1];
+    char *page_dir = argv[2];
+    int maxdepth;
+
+    if (!parse_maxdepth(argv[3], &maxdepth)) {
+        printf("error: maxdepth must be >= 0\n");
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
+
+    if (!is_writable_dir(page_dir)) {
+        printf("error: output dir does not exist or is not writable\n");
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
+
+    if (!NormalizeURL(seed_url)) {
+        printf("error: seed url is not valid\n");
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
+
+    queue_t *todo = qopen();
+    hashtable_t *visited = hopen(TABLE_SIZE);
+
+    if (todo == NULL || visited == NULL) {
+        cleanup(todo, visited);
+        exit(EXIT_FAILURE);
+    }
+
+    webpage_t *seed_page = webpage_new(seed_url, 0, NULL);
+
+    if (seed_page == NULL || !mark_visited(visited, seed_url) ||
+        qput(todo, seed_page) != 0) {
+        if (seed_page != NULL) {
+            webpage_delete(seed_page);
+        }
+        cleanup(todo, visited);
+        exit(EXIT_FAILURE);
+    }
+
+    int num_pages = 0;
+    webpage_t *page = NULL;
+
+    while ((page = qget(todo)) != NULL) {
+        if (webpage_fetch(page)) {
+            // have to save before finding links because getNextURL modifies the html
+            if (pagesave(page, num_pages + 1, page_dir) == 0) {
+                num_pages++;
+            } else {
+                printf("error: could not save %s\n", webpage_getURL(page));
+            }
+
+            if (webpage_getDepth(page) < maxdepth) {
+                enqueue_links(todo, visited, page);
+            }
+        }
+
+        webpage_delete(page);
+    }
+
+    printf("saved %d pages in %s\n", num_pages, page_dir);
+
+    cleanup(todo, visited);
+    exit(EXIT_SUCCESS);
 }
