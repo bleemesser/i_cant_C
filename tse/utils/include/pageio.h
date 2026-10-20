@@ -18,6 +18,8 @@
 #include <unistd.h>
 #include <webpage.h>
 
+#define MAX_FILENAME_BYTES 1024
+
 /*
  * pagesave -- save the page in filename id in directory dirnm
  *
