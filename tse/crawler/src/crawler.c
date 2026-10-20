@@ -1,11 +1,5 @@
 /*
  * crawler.c -- crawl the provided site and save found pages to disk
- *
- * Steps Completed:
- *      2. Fetch One Page
- *      3. Queue of Webpages
- *      4. Hash Table of URLs
- *      5. Save One Page
  */
 
 #include <errno.h>
@@ -157,6 +151,56 @@ static bool is_writable_dir(const char *path) {
 }
 
 /*
+ * Return a newly allocated copy of `url` in the one form the crawler uses,
+ * or NULL if the copy cannot be allocated.
+ *
+ * Drops any #fragment and adds a trailing slash when the last path segment has
+ * no '.', so that the server does not return 301 on the non-slash version.
+ */
+static char *canonical_url(const char *url) {
+    const char *hash = strchr(url, '#');
+
+    size_t len;
+    if (hash != NULL) {
+        len = (size_t)(hash - url);
+    } else {
+        len = strlen(url);
+    }
+
+    // find the final '/' of the path
+    const char *slash = NULL;
+    for (const char *p = url; p < url + len; p++) {
+        if (*p == '/') {
+            slash = p;
+        }
+    }
+
+    bool add_slash = false;
+    // if slash + 1 < url + len, then the segment after the final '/' is not empty,
+    if (slash != NULL && slash + 1 < url + len) {
+        size_t rest = (size_t)(url + len - slash);
+        // leave '.' and query strings alone
+        add_slash = (memchr(slash, '.', rest) == NULL &&
+                     memchr(slash, '?', rest) == NULL);
+    }
+    add_slash =
+        false;  // NOTE: this makes this function do nothing, remove it for dedup
+
+    char *canon = malloc(len + (add_slash ? 2 : 1));
+    if (canon == NULL) {
+        return NULL;
+    }
+
+    memcpy(canon, url, len);
+    if (add_slash) {
+        canon[len++] = '/';
+    }
+    canon[len] = '\0';
+
+    return canon;
+}
+
+/*
  * Add every internal link in `page` that has not been visited to `todo` at
  * one greater depth.
  *
@@ -169,15 +213,21 @@ static void enqueue_links(queue_t *todo, hashtable_t *visited,
     char *url = NULL;
 
     while ((pos = webpage_getNextURL(page, pos, &url)) > 0) {
-        if (IsInternalURL(url) && mark_visited(visited, url)) {
-            webpage_t *child =
-                webpage_new(url, webpage_getDepth(page) + 1, NULL);
+        if (IsInternalURL(url)) {
+            char *link = canonical_url(url);
 
-            if (child == NULL || qput(todo, child) != 0) {
-                if (child != NULL) {
-                    webpage_delete(child);
+            if (link != NULL && mark_visited(visited, link)) {
+                webpage_t *child =
+                    webpage_new(link, webpage_getDepth(page) + 1, NULL);
+
+                if (child == NULL || qput(todo, child) != 0) {
+                    if (child != NULL) {
+                        webpage_delete(child);
+                    }
                 }
             }
+
+            free(link);
         }
 
         free(url);
@@ -226,18 +276,23 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    char *seed = canonical_url(seed_url);
+
     queue_t *todo = qopen();
     hashtable_t *visited = hopen(TABLE_SIZE);
 
-    if (todo == NULL || visited == NULL) {
+    if (seed == NULL || todo == NULL || visited == NULL) {
         cleanup(todo, visited);
         exit(EXIT_FAILURE);
     }
 
-    webpage_t *seed_page = webpage_new(seed_url, 0, NULL);
+    webpage_t *seed_page = webpage_new(seed, 0, NULL);
+    bool queued = (seed_page != NULL && mark_visited(visited, seed) &&
+                   qput(todo, seed_page) == 0);
 
-    if (seed_page == NULL || !mark_visited(visited, seed_url) ||
-        qput(todo, seed_page) != 0) {
+    free(seed);
+
+    if (!queued) {
         if (seed_page != NULL) {
             webpage_delete(seed_page);
         }
