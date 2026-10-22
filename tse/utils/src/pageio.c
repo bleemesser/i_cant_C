@@ -107,13 +107,17 @@ webpage_t *pageload(int id, char *dirname) {
 		return NULL;
 	}
 
-	long depth_l = strtol(depth_s);
-	long len_l = strtol(len_s);
+	url[strcspn(url, "\n")] = '\0';
+	
+	char *depth_end;
+	char *len_end;
+	long depth_l = strtol(depth_s, &depth_end, 10);
+	long len_l = strtol(len_s, &len_end, 10);
 
 	//pray it worked
 	
 	int32_t depth = (int32_t) depth_l;
-	int32_t len = (int32_t) len;
+	int32_t len = (int32_t) len_l;
 	
 	char *html = calloc(1, len + 1);
 
