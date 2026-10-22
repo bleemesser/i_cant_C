@@ -1,0 +1,5 @@
+-Wall
+-pedantic
+-std=c11
+-I../utils/include
+-g

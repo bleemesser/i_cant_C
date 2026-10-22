@@ -6,6 +6,7 @@ list_test
 pageio_test
 utils/test/
 /crawler/crawler
+/indexer/indexer
 valgrind.log
 *~
 \#*\#
