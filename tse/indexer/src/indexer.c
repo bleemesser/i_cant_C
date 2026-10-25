@@ -37,7 +37,8 @@ static bool entry_match(void *elementp, const void *keyp) {
  * Increase word_count function
  */
 static void count_words(void *ep) {
-	if (ep != NULL) word_count++;
+	entry_t *entryip = ep;
+	if (entryip != NULL) word_count+=entryip->count;
 }
 
 /*
@@ -97,11 +98,10 @@ int main(void) {
 		
     int pos = 0;
     char *word = NULL;
-
+		
     while ((pos = webpage_getNextWord(p1, pos, &word)) > 0) {
         if (normalize_word(word) == 0) {
-						int len = (int)strlen(word) + 1;
-
+					  int len = (int)strlen(word) + 1;
 						entry_t *entryp = hsearch(index, entry_match, word, len);
 
 						//if entryp == NULL, need to malloc and put in index
@@ -131,6 +131,7 @@ int main(void) {
 						
 						//increase count
 						entryp->count++;
+					
         }
         free(word);
     }
@@ -141,6 +142,7 @@ int main(void) {
 		//free stuff
 		happly(index, free_entry);
 		hclose(index);
+		webpage_delete(p1);
 		
-		printf("%d words stored", word_count);
+		printf("%d words stored\n", word_count);
 }

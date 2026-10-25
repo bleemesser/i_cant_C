@@ -139,4 +139,3 @@ page
 was
 last
 updated
-done
