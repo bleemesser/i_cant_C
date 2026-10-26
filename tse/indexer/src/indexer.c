@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "pageio.h"
 #include "webpage.h"
@@ -165,21 +166,21 @@ static int32_t normalize_word(char *word) {
     return 0;
 }
 
-
-int main(void) {
-    webpage_t *p1 = pageload(1, "pages");
+/*
+ * Index a page
+ * Requires index pointer, document id, and directory name
+ * Returns false if failure, true if success
+ */
+static bool index_page(hashtable_t *index, int id, char *dirname) {
+	  webpage_t *p1 = pageload(id, dirname);
     if (p1 == NULL) {
-        printf("page 1 loaded as null\n");
-				return 1;
+			printf("page %d loaded as null\n", id);
+			webpage_delete(p1);
+			return false;
     }
-
-		//instantiate index hashtable
-		hashtable_t *index = hopen(1000);
-
 		
     int pos = 0;
     char *word = NULL;
-		int id = 1;
 		
     while ((pos = webpage_getNextWord(p1, pos, &word)) > 0) {
         if (normalize_word(word) == 0) {
@@ -193,7 +194,7 @@ int main(void) {
 							if (entryp == NULL) {
 								free(word);
 								printf("failure to create entry\n");
-								continue;
+								return false;
 							}
 
 							hput(index, entryp, word, len);
@@ -204,6 +205,13 @@ int main(void) {
 						
 						if (docp == NULL) {
 							docp = doc_open(id);
+
+							if (entryp == NULL) {
+								free(word);
+								printf("failure to create doc\n");
+								return false;
+							}
+							
 							qput(entryp->doc_queue, docp);
 						}
 
@@ -211,6 +219,48 @@ int main(void) {
         }
         free(word);
     }
+
+		webpage_delete(p1);
+		return true;
+}
+
+
+//Slight modification of parse_maxdepth
+static bool parse_id(const char *arg, int *intp) {
+    if (arg == NULL) {
+        return false;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    long value = strtol(arg, &end, 10);
+    if (errno != 0 || end == arg || *end != '\0' || value < 1 ||
+        value > INT_MAX) {
+        return false;
+    }
+
+    *intp = (int)value;
+    return true;
+}
+
+
+int main(int argc, char *argv[]) {
+		int max_id;
+		if (argc != 2) {
+			printf("usage: indexer <max_id>");
+			exit(EXIT_FAILURE);
+		}
+		if (!parse_id(argv[1], &max_id)) {
+        printf("error: max_id must be >= 1\n");
+        exit(EXIT_FAILURE);
+    }
+
+		//instantiate index hashtable
+		hashtable_t *index = hopen(1000);
+
+		for (int id=1; id<=max_id; id++) {
+			index_page(index, id, "pages");
+		}
 
 		word_count = 0;
 		happly(index, count_words_entry);
@@ -220,5 +270,4 @@ int main(void) {
 		//free stuff
 		happly(index, free_entry);
 		hclose(index);
-		webpage_delete(p1);
 }
