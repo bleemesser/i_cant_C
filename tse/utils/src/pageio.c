@@ -104,6 +104,7 @@ webpage_t *pageload(int id, char *dirname) {
 	
 	// get first three lines
 	if (fgets(url, sizeof(url), fp) == NULL || fgets(depth_s, sizeof(depth_s), fp) == NULL || fgets(len_s, sizeof(len_s), fp) == NULL) {
+		fclose(fp);
 		return NULL;
 	}
 
@@ -122,8 +123,10 @@ webpage_t *pageload(int id, char *dirname) {
 	char *html = calloc(1, len + 1);
 
 	if (fread(html, 1, len, fp) != len) {
+		fclose(fp);
 		return NULL;
 	}
 
+	fclose(fp);
 	return webpage_new(url, depth, html);
 }
