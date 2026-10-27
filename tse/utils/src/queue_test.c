@@ -28,6 +28,21 @@ static void times_two(void *elementp) {
     *(int *)elementp *= 2;
 }
 
+// multiply element by an int passed as the extra arg, for testing qapplyargs
+static void times_arg(void *elementp, void *argp) {
+    if (elementp == NULL || argp == NULL) {
+        return;
+    }
+    *(int *)elementp *= *(int *)argp;
+}
+
+// count each call, for testing qapplyargs
+static void count_call(void *elementp, void *argp) {
+    (void)elementp;
+    int *countp = argp;
+    (*countp)++;
+}
+
 /*
  * Compare elementp and keyp by value, assuming they are int*
  * for testing purposes.
@@ -180,6 +195,69 @@ static void test_apply_valid(void) {
     qclose(qp);
     free(e1);
     free(e2);
+}
+
+static void test_applyargs_null_qp(void) {
+    int factor = 2;
+    qapplyargs(NULL, times_arg, &factor);  // expect not to crash
+}
+
+static void test_applyargs_null_fn(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    int *e1 = malloc(sizeof(int));
+    *e1 = 2020;
+    check(qput(qp, e1) == 0, "item added to queue");
+
+    qapplyargs(qp, NULL, NULL);  // expect not to crash
+
+    check(qget(qp) == e1 && *e1 == 2020,
+          "qapplyargs with a NULL fn leaves the element alone");
+
+    qclose(qp);
+    free(e1);
+}
+
+static void test_applyargs_valid(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    int *e1 = malloc(sizeof(int));
+    int *e2 = malloc(sizeof(int));
+    *e1 = 2020;
+    *e2 = 2021;
+    check(qput(qp, e1) == 0, "put adds first element");
+    check(qput(qp, e2) == 0, "put adds second element");
+
+    int factor = 3;
+    qapplyargs(qp, times_arg, &factor);
+
+    check(qget(qp) == e1 && *e1 == 6060, "first element sees the arg");
+    check(qget(qp) == e2 && *e2 == 6063, "second element sees the arg");
+
+    qclose(qp);
+    free(e1);
+    free(e2);
+}
+
+static void test_applyargs_count(void) {
+    queue_t *qp = qopen();
+    check(qp != NULL, "qopen returns a queue");
+
+    for (int i = 0; i < 5; i++) {
+        int *ep = malloc(sizeof(int));
+        *ep = 2018 + i;
+        check(qput(qp, ep) == 0, "item added to queue");
+    }
+
+    int calls = 0;
+    qapplyargs(qp, count_call, &calls);
+
+    check(calls == 5, "qapplyargs calls fn once per element");
+
+    qapply(qp, free);
+    qclose(qp);
 }
 
 static void test_search_null_qp(void) {
@@ -515,6 +593,10 @@ int main(void) {
     test_apply_null_qp();
     test_apply_null_fn();
     test_apply_valid();
+    test_applyargs_null_qp();
+    test_applyargs_null_fn();
+    test_applyargs_valid();
+    test_applyargs_count();
     test_search_null_qp();
     test_search_null_fn();
     test_search_front();

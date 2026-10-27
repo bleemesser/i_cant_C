@@ -23,6 +23,9 @@ int32_t hput(hashtable_t *htp, void *ep, const char *key, int keylen);
 /* happly -- applies a function to every entry in hash table */
 void happly(hashtable_t *htp, void (*fn)(void* ep));
 
+/* happlyargs -- like happly, but fn also receives arg on each call */
+void happlyargs(hashtable_t *htp, void (*fn)(void *ep, void *arg), void *arg);
+
 /* hsearch -- searchs for an entry under a designated key using a
  * designated search fn -- returns a pointer to the entry or NULL if
  * not found

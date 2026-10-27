@@ -29,6 +29,22 @@ static void times_two(void *elementp) {
     *(int *)elementp *= 2;
 }
 
+// multiply element by an int passed as the extra arg, for testing happlyargs
+static void times_arg(void *elementp, void *argp) {
+    if (elementp == NULL || argp == NULL) {
+        return;
+    }
+
+    *(int *)elementp *= *(int *)argp;
+}
+
+// count each call, for testing happlyargs
+static void count_call(void *elementp, void *argp) {
+    (void)elementp;
+    int *countp = argp;
+    (*countp)++;
+}
+
 /*
  * Compare elementp and keyp, assuming elementp is an int* and keyp is a
  * string such as "2020".
@@ -354,6 +370,73 @@ static void test_apply_valid(void) {
     hclose(htp);
 }
 
+static void test_applyargs_null_htp(void) {
+    int factor = 2;
+    happlyargs(NULL, times_arg, &factor);  // expect not to crash
+}
+
+static void test_applyargs_null_fn(void) {
+    hashtable_t *htp = hopen(4);
+    int *e1 = malloc(sizeof(int));
+    *e1 = 2020;
+    check(hput(htp, e1, "2020", 4) == 0, "element added to table");
+
+    happlyargs(htp, NULL, NULL);  // expect not to crash
+
+    check(hsearch(htp, find_year_match, "2020", 4) == e1,
+          "happlyargs with a NULL fn leaves the element alone");
+
+    happly(htp, free);
+    hclose(htp);
+}
+
+static void test_applyargs_valid(void) {
+    hashtable_t *htp = hopen(4);
+    int *e1 = malloc(sizeof(int));
+    int *e2 = malloc(sizeof(int));
+    int *e3 = malloc(sizeof(int));
+    *e1 = 2018;
+    *e2 = 2019;
+    *e3 = 2020;
+    check(hput(htp, e1, "2018", 4) == 0, "element added to table");
+    check(hput(htp, e2, "2019", 4) == 0, "element added to table");
+    check(hput(htp, e3, "2020", 4) == 0, "element added to table");
+
+    int factor = 3;
+    happlyargs(htp, times_arg, &factor);
+
+    check(*e1 == 6054, "first element sees the arg");
+    check(*e2 == 6057, "second element sees the arg");
+    check(*e3 == 6060, "third element sees the arg");
+
+    happly(htp, free);
+    hclose(htp);
+}
+
+static void test_applyargs_count(void) {
+    hashtable_t *htp = hopen(4);
+    int *e1 = malloc(sizeof(int));
+    int *e2 = malloc(sizeof(int));
+    *e1 = 2020;
+    *e2 = 2021;
+    check(hput(htp, e1, "2020", 4) == 0, "element added to table");
+    check(hput(htp, e2, "2021", 4) == 0, "element added to table");
+
+    int calls = 0;
+    happlyargs(htp, count_call, &calls);
+
+    check(calls == 2, "happlyargs calls fn once per element");
+
+    int factor = 2;
+    happlyargs(htp, times_arg, &factor);
+
+    check(*e1 == 4040, "element in one bucket is updated");
+    check(*e2 == 4042, "element in another bucket is updated");
+
+    happly(htp, free);
+    hclose(htp);
+}
+
 int main(void) {
     test_open_and_close_empty();
     test_open_size_zero();
@@ -372,6 +455,10 @@ int main(void) {
     test_apply_null_htp();
     test_apply_null_fn();
     test_apply_valid();
+    test_applyargs_null_htp();
+    test_applyargs_null_fn();
+    test_applyargs_valid();
+    test_applyargs_count();
 
     if (failures > 0) {
         printf("%d checks failed\n", failures);

@@ -168,6 +168,30 @@ void qapply(queue_t *qp, void (*fn)(void *elementp)) {
 }
 
 /*
+ * Apply a function to every element of the queue from head to tail,
+ * passing `argp` unchanged to each call.
+ *
+ * Same rules as qapply.
+ */
+void qapplyargs(queue_t *qp, void (*fn)(void *elementp, void *argp),
+                void *argp) {
+    queue_impl_t *qip = qp;
+
+    if (qip == NULL || fn == NULL) {
+        return;
+    }
+
+    node_t *np = qip->head;
+
+    while (np != NULL) {
+        // SAFETY: qput rejects NULL elements, so elementp
+        // does not need a null check.
+        fn(np->elementp, argp);
+        np = np->next;
+    }
+}
+
+/*
  * Search the queue for the first element matching a key.
  *
  * `searchfn` is called with each element and `skeyp` from head to tail,

@@ -192,6 +192,26 @@ void happly(hashtable_t *htp, void (*fn)(void *ep)) {
 }
 
 /*
+ * Apply a function to every element stored in the hashtable,
+ * passing `arg` unchanged to each call.
+ *
+ * Same rules as happly.
+ */
+void happlyargs(hashtable_t *htp, void (*fn)(void *ep, void *arg),
+                void *arg) {
+    hash_impl_t *htip = htp;
+
+    if (htip == NULL || fn == NULL) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < htip->size; i++) {
+        // qapplyargs does nothing if queue ptr is NULL
+        qapplyargs(htip->arrayp[i], fn, arg);
+    }
+}
+
+/*
  * Search the bucket that `key` hashes to for the element matching `key`.
  *
  * `searchfn` is called with each element of that bucket and `key`,
