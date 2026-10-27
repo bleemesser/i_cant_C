@@ -40,13 +40,13 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    hashtable_t *index = hopen(1000);
+    hashtable_t *index = hopen(INDEX_LOAD_HTABLE_SIZE);
 
     for (int id = 1; id <= max_id; id++) {
         index_page(index, id, "pages");
     }
 
-    indexsave(index, "indexnm");
+    index_save(index, "indexnm");
 
     happly(index, free_entry);
     hclose(index);
