@@ -13,3 +13,4 @@ valgrind.log
 .\#*
 *.dSYM
 pages/
+indexnm
