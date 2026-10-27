@@ -24,16 +24,17 @@ typedef struct entry {
 } entry_t;
 
 /*
- * Saves the index to file `indexnm` in the cwd.
+ * Saves the index to the file named `indexnm`.
  *
  * For each word in the index, the file contains one line:
  * <word> <docID1> <count1> ... <docIDn> <countn>
  *
- * Caller MUST ensure `index` is a hashtable of char* `word` -> `entry_t`
+ * Caller MUST ensure `index` is a hashtable of `entry_t` elements
+ * whose `word` is the key.
  *
  * Returns 0 on success, 1 on failure.
  */
-int32_t indexsave(hashtable_t *index);
+int32_t indexsave(hashtable_t *index, const char *indexnm);
 
 hashtable_t *indexload(void);
 

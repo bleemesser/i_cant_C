@@ -8,56 +8,40 @@
 #include "pageio.h"
 #include "webpage.h"
 
-static void fprint_qentry(void *entryp) {
-    FILE *indexf = fopen("indexnm", "a");
-    if (indexf == NULL) {
-        printf("file open failed rip\n");
-        return;
-    }
-
-    doc_t *docp = entryp;
-    printf("printing %d, %d\n", docp->id, docp->count);
-    fprintf(indexf, " %d %d", docp->id, docp->count);
-
-    fclose(indexf);
+static void fprint_doc(void *elementp, void *argp) {
+    doc_t *docp = elementp;
+    fprintf((FILE *)argp, " %u %u", docp->id, docp->count);
 }
 
-static void fprint_entry(void *entryp) {
-    FILE *indexf = fopen("indexnm", "a");
-    if (indexf == NULL) {
-        printf("file open failed rip\n");
-        return;
-    }
-    entry_t *ep = entryp;
+static void fprint_entry(void *elementp, void *argp) {
+    FILE *indexf = argp;
+    entry_t *ep = elementp;
 
-    char *word = ep->word;
-    queue_t *dqp = ep->doc_queue;
-
-    printf("printing entry for %s\n", word);
-
-    fprintf(indexf, "%s", word);
-
-    fclose(indexf);
-    indexf = NULL;
-    qapply(dqp, fprint_qentry);
-
-    indexf = fopen("indexnm", "a");
-    if (indexf == NULL) {
-        printf("file open failed rip\n");
-        return;
-    }
+    fprintf(indexf, "%s", ep->word);
+    qapplyargs(ep->doc_queue, fprint_doc, indexf);
     fprintf(indexf, "\n");
-
-    fclose(indexf);
-    printf("printed newline for word %s\n", word);
 }
 
-int32_t indexsave(hashtable_t *index) {
-    if (index == NULL) {
+int32_t indexsave(hashtable_t *index, const char *indexnm) {
+    if (index == NULL || indexnm == NULL) {
         return 1;
     }
 
-    happly(index, fprint_entry);
+    FILE *indexf = fopen(indexnm, "w");
+    if (indexf == NULL) {
+        perror(indexnm);
+        return 1;
+    }
+
+    happlyargs(index, fprint_entry, indexf);
+
+    // apply functions cannot report failure,
+    // can only check the stream
+    int32_t error = ferror(indexf) != 0;
+
+    if (fclose(indexf) != 0 || error) {
+        return 1;
+    }
 
     return 0;
 }

@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
         index_page(index, id, "pages");
     }
 
-    indexsave(index);
+    indexsave(index, "indexnm");
 
     happly(index, free_entry);
     hclose(index);
