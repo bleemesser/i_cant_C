@@ -7,6 +7,7 @@
 
 #include "pageio.h"
 #include <sys/stat.h>
+#include <errno.h>
 
 /*
  * Write a fetched page to the file <dirname>/<id>
@@ -102,8 +103,11 @@ webpage_t *pageload(int id, char *dirname) {
 	char depth_s[10];
 	char len_s[10];
 	
-	// get first three lines
-	if (fgets(url, sizeof(url), fp) == NULL || fgets(depth_s, sizeof(depth_s), fp) == NULL || fgets(len_s, sizeof(len_s), fp) == NULL) {
+	// each header line must fit with its newline, so a line that fills the
+	// buffer without a newline is truncated or malformed
+	if (fgets(url, sizeof(url), fp) == NULL || strchr(url, '\n') == NULL ||
+	    fgets(depth_s, sizeof(depth_s), fp) == NULL || strchr(depth_s, '\n') == NULL ||
+	    fgets(len_s, sizeof(len_s), fp) == NULL || strchr(len_s, '\n') == NULL) {
 		fclose(fp);
 		return NULL;
 	}
@@ -112,17 +116,34 @@ webpage_t *pageload(int id, char *dirname) {
 	
 	char *depth_end;
 	char *len_end;
+	errno = 0;
 	long depth_l = strtol(depth_s, &depth_end, 10);
+	if (errno != 0 || depth_end == depth_s ||
+	    (*depth_end != '\n' && *depth_end != '\0') ||
+	    depth_l < 0 || depth_l > INT32_MAX) {
+		fclose(fp);
+		return NULL;
+	}
+	errno = 0;
 	long len_l = strtol(len_s, &len_end, 10);
-
-	//pray it worked
+	if (errno != 0 || len_end == len_s ||
+	    (*len_end != '\n' && *len_end != '\0') ||
+	    len_l < 0 || len_l > INT32_MAX) {
+		fclose(fp);
+		return NULL;
+	}
 	
 	int32_t depth = (int32_t) depth_l;
 	int32_t len = (int32_t) len_l;
 	
-	char *html = calloc(1, len + 1);
+	char *html = calloc(1, (size_t) len + 1);
+	if (html == NULL) {
+		fclose(fp);
+		return NULL;
+	}
 
-	if (fread(html, 1, len, fp) != len) {
+	if (fread(html, 1, len, fp) != (size_t) len) {
+		free(html);
 		fclose(fp);
 		return NULL;
 	}

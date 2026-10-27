@@ -12,9 +12,8 @@ valgrind --leak-check=full --show-leak-kinds=definite,possible \
 	./crawler/crawler https://thayer.github.io/engs50/ pages 1 > valgrind.log 2>&1
 
 if grep -q "ERROR SUMMARY: 0 errors" valgrind.log &&
-	grep -q "definitely lost: 0 bytes in 0 blocks" valgrind.log &&
-	grep -q "indirectly lost: 0 bytes in 0 blocks" valgrind.log &&
-	grep -q "possibly lost: 0 bytes in 0 blocks" valgrind.log; then
+	grep -qE "All heap blocks were freed|definitely lost: 0 bytes in 0 blocks" valgrind.log &&
+	! grep -qE "(definitely|indirectly|possibly) lost: [1-9]" valgrind.log; then
 	echo "VALGRIND PASS: crawler"
 else
 	echo "VALGRIND FAIL: crawler"

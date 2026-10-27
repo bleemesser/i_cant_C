@@ -9,12 +9,11 @@ status=0
 cd "$(dirname "$0")/.." && mkdir -p pages # must run from tse/ with pages/ dir existing
 
 valgrind --leak-check=full --show-leak-kinds=definite,possible \
-	./indexer 1 > valgrind.log 2>&1
+	./indexer/indexer 1 > valgrind.log 2>&1
 
 if grep -q "ERROR SUMMARY: 0 errors" valgrind.log &&
-	grep -q "definitely lost: 0 bytes in 0 blocks" valgrind.log &&
-	grep -q "indirectly lost: 0 bytes in 0 blocks" valgrind.log &&
-	grep -q "possibly lost: 0 bytes in 0 blocks" valgrind.log; then
+	grep -qE "All heap blocks were freed|definitely lost: 0 bytes in 0 blocks" valgrind.log &&
+	! grep -qE "(definitely|indirectly|possibly) lost: [1-9]" valgrind.log; then
 	echo "VALGRIND PASS: indexer"
 else
 	echo "VALGRIND FAIL: indexer"

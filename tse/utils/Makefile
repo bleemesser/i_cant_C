@@ -1,3 +1,5 @@
+.PHONY: all test valgrind clean
+
 CFLAGS= -Wall -pedantic -std=c11 -Iinclude -g
 OFILES=queue.o hash.o webpage.o pageio.o
 LIB=../lib/libutils.a
