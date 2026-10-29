@@ -20,7 +20,7 @@ int32_t main(void) {
 	int32_t id = 1;
 	char dirname[] = "test";
 
-	//initialize page
+	// initialize page
 	webpage_t *page_1 = webpage_new(url, depth, NULL);
 	webpage_fetch(page_1);
 
@@ -29,14 +29,14 @@ int32_t main(void) {
 		exit(EXIT_FAILURE);
 	}
 
-	//load second page
+	// load second page
 	webpage_t *page_2 = pageload(id, dirname);
 	if (page_2 == NULL) {
 		printf("failure to load\n");
 		exit(EXIT_FAILURE);
 	}
 
-	//check things
+	// check things
 	char *url_1 = webpage_getURL(page_1);
 	int depth_1 = webpage_getDepth(page_1);
 	int len_1 = webpage_getHTMLlen(page_1);
