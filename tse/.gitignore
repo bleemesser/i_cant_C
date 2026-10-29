@@ -4,6 +4,7 @@ hash_test
 queue_test
 list_test
 pageio_test
+indexio_test
 utils/test/
 /crawler/crawler
 /indexer/indexer

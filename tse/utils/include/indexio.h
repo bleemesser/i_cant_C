@@ -1,4 +1,7 @@
 #pragma once
+/*
+ * indexio.h -- building, saving, and loading the word index
+ */
 
 #include <stdint.h>
 
