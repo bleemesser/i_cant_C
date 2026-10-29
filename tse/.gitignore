@@ -8,6 +8,7 @@ indexio_test
 utils/test/
 /crawler/crawler
 /indexer/indexer
+/querier/querier
 valgrind.log
 *~
 \#*\#
