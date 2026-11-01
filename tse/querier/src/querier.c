@@ -13,6 +13,8 @@ int main(void) {
 
     char line[1024];
 
+		hashtable_t *index = index_load("test_index");
+
     while (fgets(line, sizeof(line), stdin) != NULL) {
         char **words = NULL;
         int word_count = 0;
@@ -38,20 +40,45 @@ int main(void) {
         }
 
         bool valid = true;
+				bool *skip = calloc(word_count, sizeof(bool));
 
         for (int i = 0; i < word_count; i++) {
-            if (normalize_word(words[i]) != 0) {
+					  int32_t norm_flag = normalize_word(words[i]);
+					  if (norm_flag == 1) {
                 valid = false;
                 printf("[invalid query]\n");
                 break;
             }
+					  else if (norm_flag == 2) {
+							  skip[i] = true;
+						}
         }
 
         if (valid) {
+					  int id = 1; //right now 1 is the only doc
+						uint32_t min = UINT32_MAX;
             for (int i = 0; i < word_count; i++) {
-                printf("%s ", words[i]);
-            }
-            printf("\n");
+							  if (!skip[i]) {
+									  int len = (int)strlen(words[i]) + 1;
+									  entry_t *entry = hsearch(index, entry_match, words[i], len);
+										if (entry == NULL) {
+											  printf("%s:0 ", words[i]);
+												min = 0;
+											  continue;
+										}
+										doc_t *doc = qsearch(entry->doc_queue, doc_match, &id);
+										if (doc == NULL) {
+											  printf("%s:0 ", words[i]);
+												min = 0;
+										  	continue;
+										}
+										uint32_t count = doc->count;
+										if (count < min) min = count;
+										
+								    printf("%s:%u ", words[i], count);
+							  }
+						}
+            printf("– %u\n", min);
         }
 
         printf("> ");
@@ -60,9 +87,13 @@ int main(void) {
             free(words[i]);
         }
         free(words);
+				free(skip);
     }
 
     printf("\n");
+
+		happly(index, free_entry);
+		hclose(index);
 
     return 0;
 }
