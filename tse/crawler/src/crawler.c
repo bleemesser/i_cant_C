@@ -104,7 +104,9 @@ static int32_t pagesave(webpage_t *pagep, int32_t id, char *dirname) {
 
     fwrite(webpage_getHTML(pagep), sizeof(char), html_len_bytes, fp);
 
-    if (ferror(fp) || fclose(fp) == EOF) {
+    bool error = ferror(fp) != 0;
+
+    if (fclose(fp) == EOF || error) {
         return 1;
     }
 
