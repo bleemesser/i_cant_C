@@ -25,7 +25,7 @@ valgrind:
 	$(MAKE) -C utils valgrind
 	$(MAKE) -C crawler valgrind
 	$(MAKE) -C indexer valgrind
-	# todo: querier valgrind
+	$(MAKE) -C querier valgrind
 
 clean:
 	$(MAKE) -C utils clean
