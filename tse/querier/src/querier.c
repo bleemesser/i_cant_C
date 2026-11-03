@@ -8,12 +8,17 @@
 #define DELIM " \t\r\n\v\f"
 
 int main(void) {
+    const char *index_nm = "test_index";
+    hashtable_t *index = index_load(index_nm);
+    if (index == NULL) {
+        fprintf(stderr, "querier: cannot load index '%s'\n", index_nm);
+        return EXIT_FAILURE;
+    }
+
     printf("Querier:\n");
     printf("> ");
 
     char line[1024];
-
-    hashtable_t *index = index_load("test_index");
 
     while (fgets(line, sizeof(line), stdin) != NULL) {
         char **words = NULL;
@@ -56,8 +61,10 @@ int main(void) {
         if (valid) {
             int id = 1;  // right now 1 is the only doc
             uint32_t min = UINT32_MAX;
+            bool searched = false;
             for (int i = 0; i < word_count; i++) {
                 if (!skip[i]) {
+                    searched = true;
                     int len = (int)strlen(words[i]) + 1;
                     entry_t *entry = hsearch(index, entry_match, words[i], len);
                     if (entry == NULL) {
@@ -79,7 +86,9 @@ int main(void) {
                     printf("%s:%u ", words[i], count);
                 }
             }
-            printf("– %u\n", min);
+            if (searched) {
+                printf("-- %u\n", min);
+            }
         }
 
         printf("> ");
