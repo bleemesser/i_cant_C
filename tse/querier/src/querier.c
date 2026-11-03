@@ -38,6 +38,9 @@ int main(void) {
             }
 
             words[word_count] = malloc(strlen(token) + 1);
+            if (words[word_count] == NULL) {
+                exit(EXIT_FAILURE);
+            }
             strcpy(words[word_count], token);
             word_count++;
 
@@ -46,6 +49,9 @@ int main(void) {
 
         bool valid = true;
         bool *skip = calloc(word_count, sizeof(bool));
+        if (skip == NULL && word_count > 0) {
+            exit(EXIT_FAILURE);
+        }
 
         for (int i = 0; i < word_count; i++) {
             int32_t norm_flag = normalize_word(words[i]);

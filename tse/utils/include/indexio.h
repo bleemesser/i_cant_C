@@ -76,7 +76,7 @@ void free_entry(void *ep);
  * Returns 2 if word does not meet this criteria:
  * - The word is < 3 or > 127 characters in length
  *
- * If 1 or 2 is returned, the word is not modifed.
+ * If 1 or 2 is returned, the word is not modifed and keeps its original case.
  */
 int32_t normalize_word(char *word);
 
