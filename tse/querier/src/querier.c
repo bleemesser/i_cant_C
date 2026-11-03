@@ -53,7 +53,8 @@ int main(void) {
                 valid = false;
                 printf("[invalid query]\n");
                 break;
-            } else if (norm_flag == 2) {
+            } else if (norm_flag == 2 || strcmp(words[i], "and") == 0 ||
+                       strcmp(words[i], "or") == 0) {
                 skip[i] = true;
             }
         }
