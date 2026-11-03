@@ -23,6 +23,11 @@ typedef struct rank_ctx {
     queue_t *results;
 } rank_ctx_t;
 
+typedef struct fancy_arg {
+	hashtable_t *index;
+	queue_t *rank_ctx_q;
+} fancy_arg_t
+
 static void print_usage(void) {
     printf("usage: querier <pagedir> <indexnm>\n");
 }
@@ -113,6 +118,79 @@ static bool load_url(const char *pagedir, uint32_t id, char *url, size_t size) {
     }
     return true;
 }
+
+/*
+ * Process ors
+ * WILL NEED TO FREE LATER
+ */
+static queue_t *process_ors(char **words, int word_count, bool *skip) {
+	queue_t *groups = qopen();
+	queue_t *gp_1 = qopen();
+	if (qput(groups, gp_1) != 0) {
+		return NULL;
+	}
+	queue_t **curr_q = &gp_1;
+	for (i = 0; i < word_count; i++) {
+		if (skip[i] == true) {
+			continue;
+		}
+		else if (strcmp(words[i], "or") == 0) {
+			if (i == 0 || i == word_count - 1) {
+				return NULL; //or is placed bad
+			}
+			queue_t *new_q = qopen();
+			if (qput(groups, new_q) != 0) {
+				return NULL;
+			}
+			curr_q = &new_q;
+		}
+		else {
+			if (qput(*curr_q, words[i]) != 0) {
+				return NULL;
+			}
+		}
+	}
+	
+	return groups;
+}
+
+/*
+ * Process and
+ * This is a singular and
+ * UNFINISHED
+ */
+static void process_and(void *ep, void *argp) {
+	queue_t *word_q = ep;
+	fancy_arg_t *args = argp;
+	char **words = NULL;
+	char *word = NULL;
+	int word_count = 0;
+  int capacity = 0;
+	
+	while ((word = qget(word_q)) != NULL) {
+		if (word_count >= capacity) {
+			capacity = capacity == 0 ? 4 : 2 * capacity;
+			char **new_list = realloc(words, capacity * sizeof(char *));
+			if (!new_list) {
+				exit(EXIT_FAILURE);
+			}
+			words = new_list;
+		}
+		
+		words[word_count] = malloc(strlen(word) + 1);
+		if (words[word_count] == NULL) {
+			exit(EXIT_FAILURE);
+		}
+		strcpy(words[word_count], word);
+		free(word);
+		word_count++;
+	}
+
+	
+	
+}
+
+
 
 /*
  * Print all docs that contain all unskipped words, highest rank first.
@@ -248,9 +326,10 @@ int main(int argc, char *argv[]) {
                     *c = (char)tolower((unsigned char)*c);
                 }
                 skip[i] = true;
-            } else if (strcmp(words[i], "and") == 0 ||
+            }
+						if (strcmp(words[i], "and") == 0 ||
                        strcmp(words[i], "or") == 0) {
-                skip[i] = true;
+                skip[i] = false;
             }
         }
 
