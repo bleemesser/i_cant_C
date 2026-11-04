@@ -26,6 +26,7 @@ typedef struct rank_ctx {
 typedef struct fancy_arg {
 	hashtable_t *index;
 	queue_t *rank_ctx_q;
+	bool is_valid;
 } fancy_arg_t
 
 static void print_usage(void) {
@@ -122,6 +123,7 @@ static bool load_url(const char *pagedir, uint32_t id, char *url, size_t size) {
 /*
  * Process ors
  * WILL NEED TO FREE LATER
+ *   - queue of queues of words group
  */
 static queue_t *process_ors(char **words, int word_count, bool *skip) {
 	queue_t *groups = qopen();
@@ -136,6 +138,7 @@ static queue_t *process_ors(char **words, int word_count, bool *skip) {
 		}
 		else if (strcmp(words[i], "or") == 0) {
 			if (i == 0 || i == word_count - 1) {
+				printf("[invalid query]\n");
 				return NULL; //or is placed bad
 			}
 			queue_t *new_q = qopen();
@@ -156,17 +159,20 @@ static queue_t *process_ors(char **words, int word_count, bool *skip) {
 
 /*
  * Process and
- * This is a singular and
- * UNFINISHED
+ * This is for a singular and sequence
+ * Should be applied to groups
+ * NOTE: still using exit(EXIT_FAILURE)
  */
 static void process_and(void *ep, void *argp) {
 	queue_t *word_q = ep;
 	fancy_arg_t *args = argp;
+	if (!args->is_valid) return;
+	
+	// turn word_q into word array lmao
 	char **words = NULL;
 	char *word = NULL;
 	int word_count = 0;
   int capacity = 0;
-	
 	while ((word = qget(word_q)) != NULL) {
 		if (word_count >= capacity) {
 			capacity = capacity == 0 ? 4 : 2 * capacity;
@@ -185,9 +191,50 @@ static void process_and(void *ep, void *argp) {
 		free(word);
 		word_count++;
 	}
+	
+	entry_t **entries = malloc(word_count * sizeof(entry_t *));
+	if (entries == NULL) {
+		exit(EXIT_FAILURE);
+	}
 
-	
-	
+	int entry_count = 0;
+	for (int i = 0; i < word_count; i++) {
+	  if (strcmp(words[i], "and") == 0) {
+			if (i == 0 || i == word_count - 1) {
+				printf("[invalid query]\n");
+				args->is_valid = false;
+			}
+		}
+		int len = (int)strlen(words[i]) + 1;
+		entry_t *entry = hsearch(args->index, entry_match, words[i], len);
+		if (entry == NULL) {
+      free(entries);
+			entries = NULL;
+			entry_count = 0;
+			break;
+		}
+		entries[entry_count++] = entry;
+	}
+
+	queue_t *results = qopen();
+	if (results == NULL) {
+		exit(EXIT_FAILURE);
+	}
+
+	rank_ctx_t ctx = {entries, entry_count, results};
+
+	if (entry_count != 0) {
+		qapplyargs(entries[0]->doc_queue, queue_ranked_doc, &ctx);
+	}
+
+	if (qput(args->rank_ctx_q, &ctx) != 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	for (int i = 0; i < word_count; i++) {
+		free(words[i]);
+	}
+	free(words);
 }
 
 
