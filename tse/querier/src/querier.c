@@ -24,7 +24,7 @@ typedef struct rank_ctx {
 } rank_ctx_t;
 
 static void print_usage(void) {
-    printf("usage: querier <pagedir> <indexnm>\n");
+    printf("usage: querier <pagedir> <indexnm> [-q]\n");
 }
 
 static bool is_dir(const char *path) {
@@ -178,7 +178,8 @@ static void print_ranked_docs(hashtable_t *index, const char *pagedir,
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
+    bool quiet = argc == 4 && strcmp(argv[3], "-q") == 0;
+    if (argc != 3 && !quiet) {
         print_usage();
         exit(EXIT_FAILURE);
     }
@@ -192,6 +193,13 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    char url[MAX_URL_BYTES];
+    if (!load_url(pagedir, 1, url, sizeof(url))) {
+        printf("error: %s is not a readable crawler directory\n", pagedir);
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
+
     hashtable_t *index = index_load(index_nm);
     if (index == NULL) {
         printf("error: cannot load index %s\n", index_nm);
@@ -199,8 +207,9 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Querier:\n");
-    printf("> ");
+    if (!quiet) {
+        printf("Querier:\n> ");
+    }
 
     char line[1024];
 
@@ -265,8 +274,9 @@ int main(int argc, char *argv[]) {
         }
         if (prev_op && word_count > 0) {
             valid = false;
+        }
+        if (!valid) {
             printf("[invalid query]\n");
-
         }
 
         if (valid && word_count > 0) {
@@ -276,7 +286,9 @@ int main(int argc, char *argv[]) {
             print_ranked_docs(index, pagedir, words, skip, word_count);
         }
 
-        printf("> ");
+        if (!quiet) {
+            printf("> ");
+        }
 
         for (int i = 0; i < word_count; i++) {
             free(words[i]);
@@ -285,7 +297,9 @@ int main(int argc, char *argv[]) {
         free(skip);
     }
 
-    printf("\n");
+    if (!quiet) {
+        printf("\n");
+    }
 
     happly(index, free_entry);
     hclose(index);
