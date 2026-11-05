@@ -1,0 +1,12 @@
+and cat
+or cat
+	and cat
+cat and
+cat or
+cat or	
+cat and or dog
+cat or and dog
+cat and and dog
+cat or or dog
+cat dog!
+back-up

@@ -20,6 +20,7 @@ querier:
 
 test:
 	$(MAKE) -C utils test
+	$(MAKE) -C querier test
 
 valgrind:
 	$(MAKE) -C utils valgrind

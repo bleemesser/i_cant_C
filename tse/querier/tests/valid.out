@@ -1,0 +1,23 @@
+zebra
+[no documents match]
+lab or zebra
+rank: 6: doc: 2 : https://thayer.github.io/engs50/Labs/
+lab and zebra
+[no documents match]
+lab shell
+[no documents match]
+this
+rank: 4: doc: 1 : https://thayer.github.io/engs50/
+rank: 3: doc: 2 : https://thayer.github.io/engs50/Labs/
+rank: 2: doc: 3 : https://thayer.github.io/engs50/Notes/
+design and software
+rank: 3: doc: 1 : https://thayer.github.io/engs50/
+rank: 1: doc: 3 : https://thayer.github.io/engs50/Notes/
+design or bash
+rank: 5: doc: 3 : https://thayer.github.io/engs50/Notes/
+rank: 4: doc: 1 : https://thayer.github.io/engs50/
+rank: 1: doc: 2 : https://thayer.github.io/engs50/Labs/
+design and software or zebra or lab
+rank: 6: doc: 2 : https://thayer.github.io/engs50/Labs/
+rank: 3: doc: 1 : https://thayer.github.io/engs50/
+rank: 1: doc: 3 : https://thayer.github.io/engs50/Notes/
