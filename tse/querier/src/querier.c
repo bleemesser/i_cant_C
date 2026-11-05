@@ -23,12 +23,6 @@ typedef struct rank_ctx {
     queue_t *results;
 } rank_ctx_t;
 
-typedef struct fancy_arg {
-	hashtable_t *index;
-	queue_t *rank_ctx_q;
-	bool is_valid;
-} fancy_arg_t
-
 static void print_usage(void) {
     printf("usage: querier <pagedir> <indexnm>\n");
 }
@@ -38,8 +32,12 @@ static bool is_dir(const char *path) {
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
+static bool result_match(void *ep, const void *keyp) {
+    return ((result_t *)ep)->id == *(const uint32_t *)keyp;
+}
+
 /*
- * Queue doc with its minimum count as rank if every other entry in the
+ * Add the doc's minimum count to its rank if every other entry in the
  * context also contains it
  */
 static void queue_ranked_doc(void *ep, void *argp) {
@@ -58,7 +56,12 @@ static void queue_ranked_doc(void *ep, void *argp) {
         }
     }
 
-    result_t *result = malloc(sizeof(result_t));
+    result_t *result = qsearch(ctx->results, result_match, &doc->id);
+    if (result != NULL) {
+        result->rank += rank;
+        return;
+    }
+    result = malloc(sizeof(result_t));
     if (result == NULL) {
         exit(EXIT_FAILURE);
     }
@@ -121,161 +124,36 @@ static bool load_url(const char *pagedir, uint32_t id, char *url, size_t size) {
 }
 
 /*
- * Process ors
- * WILL NEED TO FREE LATER
- *   - queue of queues of words group
- */
-static queue_t *process_ors(char **words, int word_count, bool *skip) {
-	queue_t *groups = qopen();
-	queue_t *gp_1 = qopen();
-	if (qput(groups, gp_1) != 0) {
-		return NULL;
-	}
-	queue_t **curr_q = &gp_1;
-	for (i = 0; i < word_count; i++) {
-		if (skip[i] == true) {
-			continue;
-		}
-		else if (strcmp(words[i], "or") == 0) {
-			if (i == 0 || i == word_count - 1) {
-				printf("[invalid query]\n");
-				return NULL; //or is placed bad
-			}
-			queue_t *new_q = qopen();
-			if (qput(groups, new_q) != 0) {
-				return NULL;
-			}
-			curr_q = &new_q;
-		}
-		else {
-			if (qput(*curr_q, words[i]) != 0) {
-				return NULL;
-			}
-		}
-	}
-	
-	return groups;
-}
-
-/*
- * Process and
- * This is for a singular and sequence
- * Should be applied to groups
- * NOTE: still using exit(EXIT_FAILURE)
- */
-static void process_and(void *ep, void *argp) {
-	queue_t *word_q = ep;
-	fancy_arg_t *args = argp;
-	if (!args->is_valid) return;
-	
-	// turn word_q into word array lmao
-	char **words = NULL;
-	char *word = NULL;
-	int word_count = 0;
-  int capacity = 0;
-	while ((word = qget(word_q)) != NULL) {
-		if (word_count >= capacity) {
-			capacity = capacity == 0 ? 4 : 2 * capacity;
-			char **new_list = realloc(words, capacity * sizeof(char *));
-			if (!new_list) {
-				exit(EXIT_FAILURE);
-			}
-			words = new_list;
-		}
-		
-		words[word_count] = malloc(strlen(word) + 1);
-		if (words[word_count] == NULL) {
-			exit(EXIT_FAILURE);
-		}
-		strcpy(words[word_count], word);
-		free(word);
-		word_count++;
-	}
-	
-	entry_t **entries = malloc(word_count * sizeof(entry_t *));
-	if (entries == NULL) {
-		exit(EXIT_FAILURE);
-	}
-
-	int entry_count = 0;
-	for (int i = 0; i < word_count; i++) {
-	  if (strcmp(words[i], "and") == 0) {
-			if (i == 0 || i == word_count - 1) {
-				printf("[invalid query]\n");
-				args->is_valid = false;
-			}
-		}
-		int len = (int)strlen(words[i]) + 1;
-		entry_t *entry = hsearch(args->index, entry_match, words[i], len);
-		if (entry == NULL) {
-      free(entries);
-			entries = NULL;
-			entry_count = 0;
-			break;
-		}
-		entries[entry_count++] = entry;
-	}
-
-	queue_t *results = qopen();
-	if (results == NULL) {
-		exit(EXIT_FAILURE);
-	}
-
-	rank_ctx_t ctx = {entries, entry_count, results};
-
-	if (entry_count != 0) {
-		qapplyargs(entries[0]->doc_queue, queue_ranked_doc, &ctx);
-	}
-
-	if (qput(args->rank_ctx_q, &ctx) != 0) {
-		exit(EXIT_FAILURE);
-	}
-
-	for (int i = 0; i < word_count; i++) {
-		free(words[i]);
-	}
-	free(words);
-}
-
-
-
-/*
- * Print all docs that contain all unskipped words, highest rank first.
+ * Print docs ranked by the sum over "or" groups of each group's minimum
+ * word count, highest rank first.
  */
 static void print_ranked_docs(hashtable_t *index, const char *pagedir,
                               char **words, const bool *skip, int word_count) {
     entry_t **entries = malloc(word_count * sizeof(entry_t *));
-    if (entries == NULL) {
-        exit(EXIT_FAILURE);
-    }
-
-    int entry_count = 0;
-    for (int i = 0; i < word_count; i++) {
-        if (skip[i]) {
-            continue;
-        }
-        int len = (int)strlen(words[i]) + 1;
-        entry_t *entry = hsearch(index, entry_match, words[i], len);
-        if (entry == NULL) {
-            free(entries);
-            printf("[no documents match]\n");
-            return;
-        }
-        entries[entry_count++] = entry;
-    }
-
-    if (entry_count == 0) {
-        free(entries);
-        return;
-    }
-
     queue_t *results = qopen();
-    if (results == NULL) {
+    if (entries == NULL || results == NULL) {
         exit(EXIT_FAILURE);
     }
 
-    rank_ctx_t ctx = {entries, entry_count, results};
-    qapplyargs(entries[0]->doc_queue, queue_ranked_doc, &ctx);
+    rank_ctx_t ctx = {entries, 0, results};
+    bool missing = false;
+    for (int i = 0; i <= word_count; i++) {
+        if (i == word_count || strcmp(words[i], "or") == 0) {
+            if (!missing && ctx.entry_count > 0) {
+                qapplyargs(entries[0]->doc_queue, queue_ranked_doc, &ctx);
+            }
+            ctx.entry_count = 0;
+            missing = false;
+        } else if (!skip[i]) {
+            int len = (int)strlen(words[i]) + 1;
+            entry_t *entry = hsearch(index, entry_match, words[i], len);
+            if (entry == NULL) {
+                missing = true;
+            } else {
+                entries[ctx.entry_count++] = entry;
+            }
+        }
+    }
     free(entries);
 
     result_t *top = NULL;
@@ -359,11 +237,12 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
+        // an operator is invalid at the start/end or after another operator
+        bool prev_op = true;
         for (int i = 0; i < word_count; i++) {
             int32_t norm_flag = normalize_word(words[i]);
             if (norm_flag == 1) {
                 valid = false;
-                printf("[invalid query]\n");
                 break;
             }
             if (norm_flag == 2) {
@@ -374,10 +253,20 @@ int main(int argc, char *argv[]) {
                 }
                 skip[i] = true;
             }
-						if (strcmp(words[i], "and") == 0 ||
-                       strcmp(words[i], "or") == 0) {
-                skip[i] = false;
+            bool op = strcmp(words[i], "and") == 0 || strcmp(words[i], "or") == 0;
+            if (op) {
+                skip[i] = true;
+                if (prev_op) {
+                    valid = false;
+                    break;
+                }
             }
+            prev_op = op;
+        }
+        if (prev_op && word_count > 0) {
+            valid = false;
+            printf("[invalid query]\n");
+
         }
 
         if (valid && word_count > 0) {
