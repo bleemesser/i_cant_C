@@ -1,7 +1,8 @@
+
 .PHONY: all test valgrind clean
 
 CFLAGS= -Wall -pedantic -std=c11 -Iinclude -g
-OFILES=queue.o hash.o webpage.o pageio.o indexio.o
+OFILES=queue.o hash.o webpage.o pageio.o indexio.o lhash.o
 LIB=../lib/libutils.a
 
 all: $(LIB)
@@ -10,12 +11,13 @@ $(LIB): $(OFILES)
 	mkdir -p ../lib
 	ar cr $@ $(OFILES)
 
-test: hash_test list_test queue_test pageio_test indexio_test
+test: hash_test list_test queue_test pageio_test indexio_test lhash_test
 	./hash_test
 	./list_test
 	./queue_test
 	./pageio_test
 	./indexio_test
+	./lhash_test
 
 %.o: src/%.c include/%.h
 	gcc $(CFLAGS) -c $<
@@ -41,10 +43,12 @@ pageio_test: src/pageio.c src/webpage.c include/pageio.h include/webpage.h src/p
 indexio_test: src/indexio.c src/hash.c src/queue.c src/pageio.c src/webpage.c include/indexio.h src/indexio_test.c
 	gcc $(CFLAGS) -o indexio_test src/indexio_test.c src/indexio.c src/hash.c src/queue.c src/pageio.c src/webpage.c -lcurl
 
+lhash_test: src/lhash.c src/hash.c src/queue.c include/lhash.h include/hash.h include/queue.h src/lhash_test.c
+	gcc $(CFLAGS) -o lhash_test src/lhash_test.c src/lhash.c src/hash.c src/queue.c -pthread
 
 valgrind: test
 	./valgrind.sh
 
 
 clean:
-	rm -f *.o hash_test list_test queue_test pageio_test indexio_test
+	rm -f *.o hash_test list_test queue_test pageio_test indexio_test lhash_test
