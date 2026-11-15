@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -12,14 +13,29 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "hash.h"
-#include "queue.h"
+#include "lhash.h"
+#include "lqueue.h"
 #include "webpage.h"
 
 #define TABLE_SIZE 100
 #define MAX_FILENAME_BYTES 1024
 
-// Match a stored url against a search key, for hsearch.
+typedef struct crawl_state {
+    lqueue_t *todo;
+    lhashtable_t *visited;
+    char *page_dir;
+    int maxdepth;
+    // guard for busy, num_pages, stop, and the visited check-then-insert
+    pthread_mutex_t lock;
+    // broadcast for when a thread finishes a page or stop is set
+    pthread_cond_t page_done;
+    int busy;
+    int num_pages;
+    // set to make workers exit after their current page
+    bool stop;
+} crawl_state_t;
+
+// Match a stored url against a search key, for lhsearch.
 static bool url_match(void *elementp, const void *keyp) {
     return strcmp(elementp, keyp) == 0;
 }
@@ -30,25 +46,29 @@ static bool url_match(void *elementp, const void *keyp) {
  * Returns false if `url` was already visited or the copy could not be stored.
  * Otherwise returns true.
  */
-static bool mark_visited(hashtable_t *visited, const char *url) {
+static bool mark_visited(crawl_state_t *st, const char *url) {
     int len = (int)strlen(url) + 1;  // include \0
+    bool marked = false;
 
-    if (hsearch(visited, url_match, url, len) != NULL) {
-        return false;
+    // lock so two threads cannot both miss the search and insert
+    pthread_mutex_lock(&st->lock);
+
+    if (lhsearch(st->visited, url_match, url, len) == NULL) {
+        char *copy = malloc(len);
+
+        if (copy != NULL) {
+            strcpy(copy, url);
+
+            if (lhput(st->visited, copy, copy, len) == 0) {
+                marked = true;
+            } else {
+                free(copy);
+            }
+        }
     }
 
-    char *copy = malloc(len);
-    if (copy == NULL) {
-        return false;
-    }
-    strcpy(copy, url);
-
-    if (hput(visited, copy, copy, len) != 0) {
-        free(copy);
-        return false;
-    }
-
-    return true;
+    pthread_mutex_unlock(&st->lock);
+    return marked;
 }
 
 /*
@@ -115,16 +135,16 @@ static int32_t pagesave(webpage_t *pagep, int32_t id, char *dirname) {
 
 // Print the cli format
 static void print_usage(void) {
-    printf("usage: crawler <seedurl> <pagedir> <maxdepth>\n");
+    printf("usage: crawler <seedurl> <pagedir> <maxdepth> <numthreads>\n");
 }
 
 /*
- * Parse maxdepth from the argument
+ * Parse an integer from the argument
  *
- * Returns true and stores the value if INT_MAX >= arg >= 0,
+ * Returns true and stores the value if INT_MAX >= arg >= min,
  * otherwise returns false.
  */
-static bool parse_maxdepth(const char *arg, int *depthp) {
+static bool parse_int(const char *arg, int min, int *valuep) {
     if (arg == NULL) {
         return false;
     }
@@ -132,12 +152,12 @@ static bool parse_maxdepth(const char *arg, int *depthp) {
     errno = 0;
     char *end = NULL;
     long value = strtol(arg, &end, 10);
-    if (errno != 0 || end == arg || *end != '\0' || value < 0 ||
+    if (errno != 0 || end == arg || *end != '\0' || value < min ||
         value > INT_MAX) {
         return false;
     }
 
-    *depthp = (int)value;
+    *valuep = (int)value;
     return true;
 }
 
@@ -209,8 +229,7 @@ static char *canonical_url(const char *url) {
  * Marks a link as visited even if its page cannot be allocated or queued,
  * to prevent loops.
  */
-static void enqueue_links(queue_t *todo, hashtable_t *visited,
-                          webpage_t *page) {
+static void enqueue_links(crawl_state_t *st, webpage_t *page) {
     int pos = 0;
     char *url = NULL;
 
@@ -218,11 +237,11 @@ static void enqueue_links(queue_t *todo, hashtable_t *visited,
         if (IsInternalURL(url)) {
             char *link = canonical_url(url);
 
-            if (link != NULL && mark_visited(visited, link)) {
+            if (link != NULL && mark_visited(st, link)) {
                 webpage_t *child =
                     webpage_new(link, webpage_getDepth(page) + 1, NULL);
 
-                if (child == NULL || qput(todo, child) != 0) {
+                if (child == NULL || lqput(st->todo, child) != 0) {
                     if (child != NULL) {
                         webpage_delete(child);
                     }
@@ -237,21 +256,89 @@ static void enqueue_links(queue_t *todo, hashtable_t *visited,
     }
 }
 
-// Free all contained entries in the queue and hash table, then close them
-static void cleanup(queue_t *todo, hashtable_t *visited) {
-    if (todo != NULL) {
-        qapply(todo, webpage_delete);
-        qclose(todo);
+// Save a fetched page under the next available id
+static void save_page(crawl_state_t *st, webpage_t *page) {
+    // lock during save so there is no gap or duplication/overwriting
+    pthread_mutex_lock(&st->lock);
+
+    if (pagesave(page, st->num_pages + 1, st->page_dir) == 0) {
+        st->num_pages++;
+    } else {
+        printf("error: could not save %s\n", webpage_getURL(page));
     }
 
-    if (visited != NULL) {
-        happly(visited, free);
-        hclose(visited);
+    pthread_mutex_unlock(&st->lock);
+}
+
+/*
+ * Take the next page from the queue and mark the caller as busy.
+ *
+ * Block while the queue is empty and another thread is busy, since that
+ * thread can still add links to queue. Return NULL once the queue is empty
+ * and all threads idle, or once stop is set. Caller must decrement busy and
+ * broadcast page_done after it finishes the page.
+ */
+static webpage_t *next_page(crawl_state_t *st) {
+    webpage_t *page = NULL;
+
+    pthread_mutex_lock(&st->lock);
+
+    while (!st->stop && (page = lqget(st->todo)) == NULL && st->busy > 0) {
+        pthread_cond_wait(&st->page_done, &st->lock);
     }
+
+    if (page != NULL) {
+        st->busy++;
+    }
+
+    pthread_mutex_unlock(&st->lock);
+    return page;
+}
+
+// Crawl pages from the shared queue until it is empty
+static void *crawl_worker(void *arg) {
+    crawl_state_t *st = arg;
+    webpage_t *page = NULL;
+
+    while ((page = next_page(st)) != NULL) {
+        if (webpage_fetch(page)) {
+            // have to save before finding links because getNextURL modifies the html
+            save_page(st, page);
+
+            if (webpage_getDepth(page) < st->maxdepth) {
+                enqueue_links(st, page);
+            }
+        }
+
+        webpage_delete(page);
+
+        pthread_mutex_lock(&st->lock);
+        st->busy--;
+        pthread_cond_broadcast(&st->page_done);
+        pthread_mutex_unlock(&st->lock);
+    }
+
+    return NULL;
+}
+
+// Free all shared state, including the queue and table entries
+static void cleanup(crawl_state_t *st) {
+    if (st->todo != NULL) {
+        lqapply(st->todo, webpage_delete);
+        lqclose(st->todo);
+    }
+
+    if (st->visited != NULL) {
+        lhapply(st->visited, free);
+        lhclose(st->visited);
+    }
+
+    pthread_cond_destroy(&st->page_done);
+    pthread_mutex_destroy(&st->lock);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 4) {
+    if (argc != 5) {
         print_usage();
         exit(EXIT_FAILURE);
     }
@@ -259,9 +346,16 @@ int main(int argc, char *argv[]) {
     char *seed_url = argv[1];
     char *page_dir = argv[2];
     int maxdepth;
+    int num_threads;
 
-    if (!parse_maxdepth(argv[3], &maxdepth)) {
+    if (!parse_int(argv[3], 0, &maxdepth)) {
         printf("error: maxdepth must be >= 0\n");
+        print_usage();
+        exit(EXIT_FAILURE);
+    }
+
+    if (!parse_int(argv[4], 1, &num_threads)) {
+        printf("error: numthreads must be >= 1\n");
         print_usage();
         exit(EXIT_FAILURE);
     }
@@ -278,19 +372,44 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    crawl_state_t st = {
+        .todo = NULL,
+        .visited = NULL,
+        .page_dir = page_dir,
+        .maxdepth = maxdepth,
+        .busy = 0,
+        .num_pages = 0,
+        .stop = false,
+    };
+
+    if (pthread_mutex_init(&st.lock, NULL) != 0) {
+        printf("error: could not create mutex\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_cond_init(&st.page_done, NULL) != 0) {
+        printf("error: could not create condition variable\n");
+        pthread_mutex_destroy(&st.lock);
+        exit(EXIT_FAILURE);
+    }
+
+    st.todo = lqopen();
+    st.visited = lhopen(TABLE_SIZE);
+
     char *seed = canonical_url(seed_url);
+    pthread_t *threads = malloc(sizeof(pthread_t) * (size_t)num_threads);
 
-    queue_t *todo = qopen();
-    hashtable_t *visited = hopen(TABLE_SIZE);
-
-    if (seed == NULL || todo == NULL || visited == NULL) {
-        cleanup(todo, visited);
+    if (seed == NULL || threads == NULL || st.todo == NULL ||
+        st.visited == NULL) {
+        free(seed);
+        free(threads);
+        cleanup(&st);
         exit(EXIT_FAILURE);
     }
 
     webpage_t *seed_page = webpage_new(seed, 0, NULL);
-    bool queued = (seed_page != NULL && mark_visited(visited, seed) &&
-                   qput(todo, seed_page) == 0);
+    bool queued = (seed_page != NULL && mark_visited(&st, seed) &&
+                   lqput(st.todo, seed_page) == 0);
 
     free(seed);
 
@@ -298,32 +417,35 @@ int main(int argc, char *argv[]) {
         if (seed_page != NULL) {
             webpage_delete(seed_page);
         }
-        cleanup(todo, visited);
+        free(threads);
+        cleanup(&st);
         exit(EXIT_FAILURE);
     }
 
-    int num_pages = 0;
-    webpage_t *page = NULL;
+    int started;
+    for (started = 0; started < num_threads; started++) {
+        if (pthread_create(&threads[started], NULL, crawl_worker, &st) != 0) {
+            printf("error: could not create thread %d\n", started + 1);
 
-    while ((page = qget(todo)) != NULL) {
-        if (webpage_fetch(page)) {
-            // have to save before finding links because getNextURL modifies the html
-            if (pagesave(page, num_pages + 1, page_dir) == 0) {
-                num_pages++;
-            } else {
-                printf("error: could not save %s\n", webpage_getURL(page));
-            }
-
-            if (webpage_getDepth(page) < maxdepth) {
-                enqueue_links(todo, visited, page);
-            }
+            pthread_mutex_lock(&st.lock);
+            st.stop = true;
+            pthread_cond_broadcast(&st.page_done);
+            pthread_mutex_unlock(&st.lock);
+            break;
         }
-
-        webpage_delete(page);
     }
 
-    printf("saved %d pages in %s\n", num_pages, page_dir);
+    for (int i = 0; i < started; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
-    cleanup(todo, visited);
-    exit(EXIT_SUCCESS);
+    bool ok = !st.stop;
+    if (ok) {
+        printf("saved %d pages in %s using %d threads\n", st.num_pages,
+               page_dir, started);
+    }
+
+    free(threads);
+    cleanup(&st);
+    exit(ok ? EXIT_SUCCESS : EXIT_FAILURE);
 }

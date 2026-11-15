@@ -1,4 +1,4 @@
-CFLAGS= -Wall -pedantic -std=c11 -Iinclude -I../utils/include -L../lib -g
+CFLAGS= -Wall -pedantic -std=c11 -Iinclude -I../utils/include -L../lib -g -pthread
 LIBS=-lutils -lcurl
 LIB=../lib/libutils.a
 
