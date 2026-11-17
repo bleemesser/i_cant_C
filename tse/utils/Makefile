@@ -11,14 +11,14 @@ $(LIB): $(OFILES)
 	mkdir -p ../lib
 	ar cr $@ $(OFILES)
 
-test: hash_test list_test queue_test lqueue_test pageio_test indexio_test lhash_test
+test: hash_test list_test queue_test lqueue_test pageio_test indexio_test lhash_test lqueue_test
 	./hash_test
 	./list_test
 	./queue_test
-	./lqueue_test
 	./pageio_test
 	./indexio_test
 	./lhash_test
+	./lqueue_test
 
 %.o: src/%.c include/%.h
 	gcc $(CFLAGS) -c $<

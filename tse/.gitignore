@@ -5,6 +5,8 @@ queue_test
 list_test
 pageio_test
 indexio_test
+lhash_test
+lqueue_test
 utils/test/
 /crawler/crawler
 /indexer/indexer
